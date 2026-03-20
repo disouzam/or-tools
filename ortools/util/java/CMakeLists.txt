@@ -28,3 +28,16 @@ set_target_properties(jniutil PROPERTIES
   SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
   POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(jniutil PRIVATE ortools::ortools)
+
+add_library(util_java_wrappers OBJECT wrappers.h wrappers.cc)
+set_target_properties(util_java_wrappers PROPERTIES
+  POSITION_INDEPENDENT_CODE ON)
+target_include_directories(util_java_wrappers PUBLIC
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_BINARY_DIR})
+target_link_libraries(util_java_wrappers PUBLIC
+  absl::memory
+  absl::synchronization
+  absl::str_format
+  protobuf::libprotobuf)
+add_library(${PROJECT_NAMESPACE}::util_java_wrappers ALIAS util_java_wrappers)

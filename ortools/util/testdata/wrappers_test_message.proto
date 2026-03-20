@@ -13,7 +13,7 @@
 
 syntax = "proto2";
 
-package operations_research.util.python;
+package operations_research.util;
 
 message WrappersTestMessage {
   optional int32 int32_field = 1;

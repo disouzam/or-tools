@@ -12,18 +12,24 @@
 # limitations under the License.
 
 load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:java_proto_library.bzl", "java_proto_library")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 
-exports_files(["qap_example1.txt"])
+package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "wrappers_test_proto",
-    srcs = ["wrappers_test.proto"],
+    name = "wrappers_test_message_proto",
+    srcs = ["wrappers_test_message.proto"],
 )
 
 cc_proto_library(
-    name = "wrappers_test_cc_proto",
-    testonly = True,
+    name = "wrappers_test_message_cc_proto",
     visibility = ["//visibility:public"],
-    deps = [":wrappers_test_proto"],
+    deps = [":wrappers_test_message_proto"],
+)
+
+java_proto_library(
+    name = "wrappers_test_message_java_proto",
+    visibility = ["//visibility:public"],
+    deps = [":wrappers_test_message_proto"],
 )

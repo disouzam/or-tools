@@ -49,28 +49,46 @@ class GlobalRefGuard {
 
 %module(directors="1") operations_research_sat
 
-%typemap(javaimports) operations_research::sat::CpSatHelper %{
-import com.google.ortools.util.Domain;
+%pragma(java) jniclassimports=%{
+import com.google.ortools.sat.CpModelProto;
+import com.google.ortools.sat.CpSolverResponse;
+import com.google.ortools.sat.IntegerVariableProto;
+import com.google.ortools.sat.SatParameters;
 %}
 
-PROTO_INPUT(operations_research::sat::CpModelProto,
-            com.google.ortools.sat.CpModelProto,
-            model_proto);
+%typemap(javaimports) SWIGTYPE %{
+import com.google.ortools.sat.CpModelProto;
+import com.google.ortools.sat.CpSolverResponse;
+import com.google.ortools.sat.IntegerVariableProto;
+import com.google.ortools.sat.SatParameters;
+%}
+
+%typemap(javaimports) operations_research::sat::CpSatHelper %{
+import com.google.ortools.util.Domain;
+import com.google.ortools.sat.CpModelProto;
+import com.google.ortools.sat.CpSolverResponse;
+import com.google.ortools.sat.IntegerVariableProto;
+import com.google.ortools.sat.SatParameters;
+%}
+
+%typemap(javaimports) operations_research::sat::SolveWrapper %{
+import com.google.ortools.sat.CpModelProto;
+import com.google.ortools.sat.CpSolverResponse;
+import com.google.ortools.sat.SatParameters;
+%}
+
+%typemap(javaimports) operations_research::sat::SolutionCallback %{
+import com.google.ortools.sat.CpModelProto;
+import com.google.ortools.sat.CpSolverResponse;
+import com.google.ortools.sat.IntegerVariableProto;
+import com.google.ortools.sat.SatParameters;
+%}
+
+%import "ortools/sat/java/cp_model_proto.swig"
 
 PROTO_INPUT(operations_research::sat::SatParameters,
             com.google.ortools.sat.SatParameters,
             parameters);
-
-PROTO_INPUT(operations_research::sat::IntegerVariableProto,
-            com.google.ortools.sat.IntegerVariableProto,
-            variable_proto);
-
-PROTO_INPUT(operations_research::sat::CpSolverResponse,
-            com.google.ortools.sat.CpSolverResponse,
-            response);
-
-PROTO2_RETURN(operations_research::sat::CpSolverResponse,
-              com.google.ortools.sat.CpSolverResponse);
 
 // This typemap is inspired by the constraints_solver java typemaps.
 // The only difference is that the argument is not a basic type, and needs

@@ -17,17 +17,76 @@ set_property(SOURCE sat.swig PROPERTY COMPILE_DEFINITIONS
   ${OR_TOOLS_COMPILE_DEFINITIONS} ABSL_MUST_USE_RESULT=)
 set_property(SOURCE sat.swig PROPERTY COMPILE_OPTIONS
   -package ${JAVA_PACKAGE}.sat)
+
+# SWIG generator
+add_executable(gen_sat_java_swig gen_sat_java_swig.cc)
+target_link_libraries(gen_sat_java_swig PRIVATE
+  ortools::ortools
+  ${PROJECT_NAMESPACE}::util_java_wrappers
+  absl::flags_parse
+  absl::flags_usage
+  absl::die_if_null
+  absl::log_initialize
+  absl::str_format)
+
+include(GNUInstallDirs)
+if(APPLE)
+  set_target_properties(gen_sat_java_swig PROPERTIES INSTALL_RPATH
+    "@loader_path/../${CMAKE_INSTALL_LIBDIR};@loader_path")
+elseif(UNIX)
+  cmake_path(RELATIVE_PATH CMAKE_INSTALL_FULL_LIBDIR
+             BASE_DIRECTORY ${CMAKE_INSTALL_FULL_BINDIR}
+             OUTPUT_VARIABLE libdir_relative_path)
+  set_target_properties(gen_sat_java_swig PROPERTIES
+                        INSTALL_RPATH "$ORIGIN/${libdir_relative_path}")
+endif()
+
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
+  COMMAND gen_sat_java_swig > "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
+  DEPENDS gen_sat_java_swig
+  COMMENT "Generate cp_model_proto.swig"
+  VERBATIM)
+
+# cp_model_proto
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY CPLUSPLUS ON)
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY SWIG_MODULE_NAME cp_model_proto)
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY COMPILE_DEFINITIONS
+  ${OR_TOOLS_COMPILE_DEFINITIONS} ABSL_MUST_USE_RESULT=)
+set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY COMPILE_OPTIONS
+  -package ${JAVA_PACKAGE}.sat)
+swig_add_library(jnicp_model_proto
+  TYPE OBJECT
+  LANGUAGE java
+  OUTPUT_DIR ${JAVA_PROJECT_DIR}/${JAVA_SRC_PATH}/sat
+  SOURCES "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig")
+
+target_include_directories(jnicp_model_proto PRIVATE
+  ${JNI_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_BINARY_DIR})
+set_target_properties(jnicp_model_proto PROPERTIES
+  SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
+  POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(jnicp_model_proto PRIVATE ortools::ortools)
+target_link_libraries(jni${JAVA_ARTIFACT} PRIVATE jnicp_model_proto)
+
+# sat
 swig_add_library(jnisat
   TYPE OBJECT
   LANGUAGE java
   OUTPUT_DIR ${JAVA_PROJECT_DIR}/${JAVA_SRC_PATH}/sat
   SOURCES sat.swig)
 
-target_include_directories(jnisat PRIVATE ${JNI_INCLUDE_DIRS})
+target_include_directories(jnisat PRIVATE
+  ${JNI_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_BINARY_DIR})
 set_target_properties(jnisat PROPERTIES
   SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
   POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(jnisat PRIVATE ortools::ortools)
+add_dependencies(jnisat jnicp_model_proto)
 
 if(BUILD_TESTING)
   file(GLOB JAVA_SRCS "*Test.java")

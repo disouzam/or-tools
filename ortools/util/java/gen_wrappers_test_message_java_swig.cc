@@ -16,32 +16,36 @@
 #include "absl/log/die_if_null.h"
 #include "absl/log/initialize.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"  // IWYU pragma: keep
-#include "ortools/util/python/wrappers.h"
-#include "ortools/util/testdata/wrappers_test.pb.h"
+#include "ortools/util/java/wrappers.h"
+#include "ortools/util/testdata/wrappers_test_message.pb.h"
 
-namespace operations_research::util::python {
+namespace operations_research::util::java {
 
 void ParseAndGenerate() {
   absl::PrintF(
       R"(
-
 // This is a generated file, do not edit.
-#if defined(IMPORT_PROTO_WRAPPER_CODE)
+%%module(directors="1") wrappers_test_message
+
+%%{
+#include "ortools/port/proto_utils.h"
+#include "ortools/util/testdata/wrappers_test_message.pb.h"
+%%}
+
+%%include "ortools/base/base.i"
+
 %s
-#endif  // defined(IMPORT_PROTO_WRAPPER_CODE)
 )",
-      GeneratePybindCode(
-          {ABSL_DIE_IF_NULL(operations_research::util::python::
-                                WrappersTestMessage::descriptor())}));
+      GenerateJavaSwigCode({ABSL_DIE_IF_NULL(
+          operations_research::util::WrappersTestMessage::descriptor())}));
 }
 
-}  // namespace operations_research::util::python
+}  // namespace operations_research::util::java
 
 int main(int argc, char* argv[]) {
   absl::InitializeLog();
   absl::SetProgramUsageMessage(argv[0]);
   absl::ParseCommandLine(argc, argv);
-  operations_research::util::python::ParseAndGenerate();
+  operations_research::util::java::ParseAndGenerate();
   return 0;
 }

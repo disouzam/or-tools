@@ -93,6 +93,7 @@ cc_library(
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
     ],
 )
@@ -177,13 +178,13 @@ cc_library(
 )
 
 cc_binary(
-    name = "gen_wrappers_test_pybind11",
+    name = "gen_wrappers_test_message_pybind11",
     testonly = True,
-    srcs = ["gen_wrappers_test_pybind11.cc"],
+    srcs = ["gen_wrappers_test_message_pybind11.cc"],
     deps = [
         ":wrappers",
         "//ortools/base",
-        "//ortools/util/testdata:wrappers_test_cc_proto",
+        "//ortools/util/testdata:wrappers_test_message_cc_proto",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
         "@abseil-cpp//absl/log:die_if_null",
@@ -194,37 +195,37 @@ cc_binary(
 )
 
 genrule(
-    name = "run_gen_wrappers_test_pybind11",
+    name = "run_gen_wrappers_test_message_pybind11",
     testonly = True,
-    outs = ["wrappers_test_pybind11.h"],
-    cmd = "$(location :gen_wrappers_test_pybind11) > $@",
-    tools = [":gen_wrappers_test_pybind11"],
+    outs = ["wrappers_test_message_pybind11.h"],
+    cmd = "$(location :gen_wrappers_test_message_pybind11) > $@",
+    tools = [":gen_wrappers_test_message_pybind11"],
 )
 
 cc_library(
-    name = "wrappers_test_pybind11",
+    name = "wrappers_test_message_pybind11",
     testonly = True,
-    hdrs = ["wrappers_test_pybind11.h"],
+    hdrs = ["wrappers_test_message_pybind11.h"],
 )
 
 pybind_extension(
-    name = "wrappers_test_extension",
+    name = "wrappers_test_message_extension",
     testonly = True,
-    srcs = ["wrappers_test_extension.cc"],
+    srcs = ["wrappers_test_message_extension.cc"],
     visibility = ["//visibility:public"],
     deps = [
-        ":wrappers_test_pybind11",
+        ":wrappers_test_message_pybind11",
         "//ortools/port:proto_utils",
-        "//ortools/util/testdata:wrappers_test_cc_proto",
+        "//ortools/util/testdata:wrappers_test_message_cc_proto",
         "@abseil-cpp//absl/strings",
     ],
 )
 
 py_test(
-    name = "wrappers_test",
-    srcs = ["wrappers_test.py"],
+    name = "wrappers_test_message_test",
+    srcs = ["wrappers_test_message_test.py"],
     deps = [
-        ":wrappers_test_extension",
+        ":wrappers_test_message_extension",
         requirement("absl-py"),
     ],
 )

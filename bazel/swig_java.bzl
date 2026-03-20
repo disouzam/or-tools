@@ -66,6 +66,13 @@ def _java_wrap_cc_impl(ctx):
     swig_args.add("-o", outfile)
     if ctx.attr.module:
         swig_args.add("-module", ctx.attr.module)
+
+    # Add the workspace root to the include path.
+    swig_args.add("-I.")
+
+    # Add the bin_dir to the include path for generated files.
+    swig_args.add("-I" + ctx.bin_dir.path)
+
     for include_path in depset(transitive = include_path_sets).to_list():
         swig_args.add("-I" + include_path)
     swig_args.add(swig_src.path)

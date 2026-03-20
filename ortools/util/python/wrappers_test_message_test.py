@@ -14,13 +14,15 @@
 
 from absl.testing import absltest
 
-from ortools.util.python import wrappers_test_extension
+from ortools.util.python import wrappers_test_message_extension
 
 
 class WrappersTest(absltest.TestCase):
+    """Tests the WrappersTestMessage."""
 
     def test_wrappers(self):
-        msg = wrappers_test_extension.WrappersTestMessage()
+        """Tests the WrappersTestMessage."""
+        msg = wrappers_test_message_extension.WrappersTestMessage()
         msg.int32_field = 12
         self.assertEqual(msg.int32_field, 12)
 
@@ -33,21 +35,23 @@ class WrappersTest(absltest.TestCase):
         msg.string_field = "test"
         self.assertEqual(msg.string_field, "test")
 
-        msg.enum_field = wrappers_test_extension.WrappersTestMessage.TEST_ENUM_VALUE1
+        msg.enum_field = (
+            wrappers_test_message_extension.WrappersTestMessage.TEST_ENUM_VALUE1
+        )
         self.assertEqual(
             msg.enum_field,
-            wrappers_test_extension.WrappersTestMessage.TEST_ENUM_VALUE1,
+            wrappers_test_message_extension.WrappersTestMessage.TEST_ENUM_VALUE1,
         )
 
         msg.nested_message_field.nested_int_field = 42
         self.assertEqual(msg.nested_message_field.nested_int_field, 42)
 
         msg.value_enum_field = (
-            wrappers_test_extension.WrappersTestMessage.WrappersTestMessage_Value.VALUE_A
+            wrappers_test_message_extension.WrappersTestMessage.WrappersTestMessage_Value.VALUE_A
         )
         self.assertEqual(
             msg.value_enum_field,
-            wrappers_test_extension.WrappersTestMessage.WrappersTestMessage_Value.VALUE_A,
+            wrappers_test_message_extension.WrappersTestMessage.WrappersTestMessage_Value.VALUE_A,
         )
 
         msg.repeated_int32_field.append(1)
@@ -71,17 +75,19 @@ class WrappersTest(absltest.TestCase):
         self.assertEmpty(msg.oneof_string)
 
     def test_copy_from(self):
-        msg1 = wrappers_test_extension.WrappersTestMessage()
+        """Tests the copy_from method."""
+        msg1 = wrappers_test_message_extension.WrappersTestMessage()
         msg1.int32_field = 10
-        msg2 = wrappers_test_extension.WrappersTestMessage()
+        msg2 = wrappers_test_message_extension.WrappersTestMessage()
         msg2.copy_from(msg1)
         self.assertEqual(msg2.int32_field, 10)
 
     def test_parse_string(self):
-        msg = wrappers_test_extension.WrappersTestMessage()
+        """Tests the parse_text_format method."""
+        msg = wrappers_test_message_extension.WrappersTestMessage()
         msg.int32_field = 123
         text = str(msg)
-        msg2 = wrappers_test_extension.WrappersTestMessage()
+        msg2 = wrappers_test_message_extension.WrappersTestMessage()
         # The C++ wrapper uses TextFormat::ParseFromString
         msg2.parse_text_format(text)
         self.assertEqual(msg2.int32_field, 123)

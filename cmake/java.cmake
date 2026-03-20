@@ -105,7 +105,7 @@ file(GLOB_RECURSE proto_java_files RELATIVE ${PROJECT_SOURCE_DIR}
   "ortools/graph/*.proto"
   "ortools/linear_solver/*.proto"
   "ortools/routing/*.proto"
-  "ortools/sat/*.proto"
+  "ortools/sat/sat_parameters.proto"
   "ortools/util/*.proto"
   )
 if(USE_PDLP)
@@ -261,14 +261,14 @@ list(APPEND CMAKE_SWIG_FLAGS "-I${PROJECT_SOURCE_DIR}")
 
 # Swig wrap all libraries
 foreach(SUBPROJECT IN ITEMS
+ util
  algorithms
  graph
  init
  linear_solver
  constraint_solver
  routing
- sat
- util)
+ sat)
   add_subdirectory(ortools/${SUBPROJECT}/java)
   target_link_libraries(jni${JAVA_ARTIFACT} PRIVATE jni${SUBPROJECT})
 endforeach()

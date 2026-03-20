@@ -11,22 +11,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
+#ifndef ORTOOLS_UTIL_JAVA_WRAPPERS_H_
+#define ORTOOLS_UTIL_JAVA_WRAPPERS_H_
+
 #include <string>
 
-#include "absl/strings/str_join.h"     // IWYU pragma: keep
-#include "ortools/port/proto_utils.h"  // IWYU: keep
-#include "ortools/util/testdata/wrappers_test.pb.h"
-#include "pybind11/pybind11.h"
+#include "absl/base/nullability.h"
+#include "absl/types/span.h"
+#include "google/protobuf/descriptor.h"
 
-namespace py = pybind11;
+namespace operations_research::util::java {
 
-namespace operations_research::util::python {
+// Generates SWIG code for the given proto messages.
+std::string GenerateJavaSwigCode(
+    absl::Span<const google::protobuf::Descriptor* absl_nonnull const> roots,
+    absl::Span<const google::protobuf::EnumDescriptor* absl_nonnull const>
+        enums = {});
 
-PYBIND11_MODULE(wrappers_test_extension, m) {
-#define IMPORT_PROTO_WRAPPER_CODE
-#include "ortools/util/python/wrappers_test_pybind11.h"
-#undef IMPORT_PROTO_WRAPPER_CODE
-}
+}  // namespace operations_research::util::java
 
-}  // namespace operations_research::util::python
+#endif  // ORTOOLS_UTIL_JAVA_WRAPPERS_H_
