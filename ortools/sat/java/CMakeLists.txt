@@ -42,11 +42,19 @@ elseif(UNIX)
 endif()
 
 add_custom_command(
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/java_cp_model_proto_timestamp
   COMMAND gen_sat_java_swig > "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
+  COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/java_cp_model_proto_timestamp
   DEPENDS gen_sat_java_swig
-  COMMENT "Generate cp_model_proto.swig"
+  BYPRODUCTS
+    ${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig
+  COMMENT "Generate java/cp_model_proto.swig (java_cp_model_proto_timestamp)"
   VERBATIM)
+
+add_custom_target(java_cp_model_proto
+  DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/java_cp_model_proto_timestamp
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # cp_model_proto
 set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY CPLUSPLUS ON)
@@ -55,6 +63,8 @@ set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY C
   ${OR_TOOLS_COMPILE_DEFINITIONS} ABSL_MUST_USE_RESULT=)
 set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY COMPILE_OPTIONS
   -package ${JAVA_PACKAGE}.sat)
+
+set(SWIG_MODULE_jnicp_model_proto_EXTRA_DEPS java_cp_model_proto)
 swig_add_library(jnicp_model_proto
   TYPE OBJECT
   LANGUAGE java
