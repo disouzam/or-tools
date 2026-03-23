@@ -80,7 +80,7 @@ target_link_libraries(${WRAPPERS_NAME} PUBLIC
   absl::synchronization
   absl::str_format
   protobuf::libprotobuf)
-add_library(${PROJECT_NAMESPACE}::${WRAPPERS_NAME} ALIAS ${WRAPPERS_NAME})  
+add_library(${PROJECT_NAMESPACE}::${WRAPPERS_NAME} ALIAS ${WRAPPERS_NAME})
 
 if(BUILD_TESTING)
   add_library(py_solve_interrupter_testing OBJECT
@@ -110,10 +110,9 @@ if(BUILD_TESTING)
   target_link_libraries(solve_interrupter_testing_pybind11 PRIVATE ${PROJECT_NAMESPACE}::ortools)
 
   file(GLOB PYTHON_SRCS "*_test.py")
+  list(REMOVE_ITEM PYTHON_SRCS
+    ${CMAKE_CURRENT_SOURCE_DIR}/wrappers_test_message_test.py)
   foreach(FILE_NAME IN LISTS PYTHON_SRCS)
-    if("${FILE_NAME}" MATCHES ".*wrappers_test.py")
-      continue() # Skip to the next iteration of the loop
-    endif()
     add_python_test(FILE_NAME ${FILE_NAME})
   endforeach()
 endif()
