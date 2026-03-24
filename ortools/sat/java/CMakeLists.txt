@@ -19,8 +19,8 @@ set_property(SOURCE sat.swig PROPERTY COMPILE_OPTIONS
   -package ${JAVA_PACKAGE}.sat)
 
 # SWIG generator
-add_executable(gen_sat_java_swig gen_sat_java_swig.cc)
-target_link_libraries(gen_sat_java_swig PRIVATE
+add_executable(gen_cp_model_proto_swig gen_cp_model_proto_swig.cc)
+target_link_libraries(gen_cp_model_proto_swig PRIVATE
   ortools::ortools
   ${PROJECT_NAMESPACE}::util_java_wrappers
   absl::flags_parse
@@ -31,21 +31,21 @@ target_link_libraries(gen_sat_java_swig PRIVATE
 
 include(GNUInstallDirs)
 if(APPLE)
-  set_target_properties(gen_sat_java_swig PROPERTIES INSTALL_RPATH
+  set_target_properties(gen_cp_model_proto_swig PROPERTIES INSTALL_RPATH
     "@loader_path/../${CMAKE_INSTALL_LIBDIR};@loader_path")
 elseif(UNIX)
   cmake_path(RELATIVE_PATH CMAKE_INSTALL_FULL_LIBDIR
              BASE_DIRECTORY ${CMAKE_INSTALL_FULL_BINDIR}
              OUTPUT_VARIABLE libdir_relative_path)
-  set_target_properties(gen_sat_java_swig PROPERTIES
+  set_target_properties(gen_cp_model_proto_swig PROPERTIES
                         INSTALL_RPATH "$ORIGIN/${libdir_relative_path}")
 endif()
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/java_cp_model_proto_timestamp
-  COMMAND gen_sat_java_swig > "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
+  COMMAND gen_cp_model_proto_swig > "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig"
   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/java_cp_model_proto_timestamp
-  DEPENDS gen_sat_java_swig
+  DEPENDS gen_cp_model_proto_swig
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig
   COMMENT "Generate java/cp_model_proto.swig (java_cp_model_proto_timestamp)"

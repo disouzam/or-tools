@@ -459,6 +459,7 @@ cc_test(
         "//ortools/base:gmock_main",
         "//ortools/graph_base:graph",
         "//ortools/linear_solver:linear_solver_base",
+        "//ortools/linear_solver:linear_solver_glop",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random:distributions",

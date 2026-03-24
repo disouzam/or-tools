@@ -51,3 +51,4 @@ target_include_directories(util_java_jni_helper PUBLIC
 target_include_directories (util_java_jni_helper PRIVATE ${JNI_INCLUDE_DIRS})
 target_link_libraries (util_java_jni_helper PRIVATE ${JNI_LIBRARIES})
 add_library(${PROJECT_NAMESPACE}::util_java_jni_helper ALIAS util_java_jni_helper)
+

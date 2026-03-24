@@ -121,6 +121,7 @@ cc_binary(
     name = "gen_wrappers_test_message_java_swig",
     testonly = 1,
     srcs = ["gen_wrappers_test_message_java_swig.cc"],
+    tags = ["manual"],
     deps = [
         ":wrappers",
         "//ortools/base",
@@ -139,6 +140,7 @@ genrule(
     testonly = 1,
     outs = ["wrappers_test_message.swig"],
     cmd = "$(location :gen_wrappers_test_message_java_swig) > $@",
+    tags = ["manual"],
     tools = [":gen_wrappers_test_message_java_swig"],
 )
 

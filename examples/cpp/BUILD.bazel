@@ -13,6 +13,7 @@
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel:compilation_flags.bzl", "SAFE_FP_CODE")
 load("//tools/testing:bintest.bzl", "bintest")
 
 # Description:
@@ -178,12 +179,14 @@ cc_binary(
     srcs = ["dobble_ls.cc"],
     deps = [
         "//ortools/base",
-        "//ortools/base:map_util",
-        "//ortools/base:types",
         "//ortools/constraint_solver:cp",
         "//ortools/util:bitset",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -452,9 +455,9 @@ cc_binary(
     deps = [
         "//ortools/base",
         "//ortools/base:map_util",
-        "//ortools/base:types",
         "//ortools/constraint_solver:cp",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
     ],
@@ -614,6 +617,7 @@ cc_binary(
         "//ortools/base",
         "//ortools/linear_solver:linear_solver_cc_proto",
         "//ortools/linear_solver:solve_mp_model",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],
 )
@@ -715,7 +719,7 @@ bintest(
 cc_binary(
     name = "mps_driver",
     srcs = ["mps_driver.cc"],
-    copts = ["-Wfloat-conversion"],
+    copts = SAFE_FP_CODE,
     deps = [
         "//ortools/base",
         "//ortools/base:file",
@@ -724,7 +728,7 @@ cc_binary(
         "//ortools/glop:lp_solver",
         "//ortools/glop:parameters_cc_proto",
         "//ortools/lp_data",
-        "//ortools/lp_data:base",
+        "//ortools/lp_data:lp_types",
         "//ortools/lp_data:mps_reader",
         "//ortools/lp_data:proto_utils",
         "//ortools/util:file_util",
@@ -901,7 +905,9 @@ cc_binary(
         "//ortools/sat:cp_model",
         "//ortools/sat:sat_parameters_cc_proto",
         "//ortools/util:qap_reader",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@protobuf",
