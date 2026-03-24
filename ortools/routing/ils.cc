@@ -77,7 +77,7 @@ SavingsParameters GetSavingsParametersForRecreateStrategy(
 
 // Returns a ruin procedure based on the given ruin strategy.
 std::unique_ptr<RuinProcedure> MakeRuinProcedure(
-    Model* model, const Assignment* assignment, std::mt19937* rnd,
+    Model* model, const Assignment* assignment, std::mt19937_64* rnd,
     RuinStrategy ruin, int num_neighbors_for_route_selection) {
   switch (ruin.strategy_case()) {
     case RuinStrategy::kSpatiallyCloseRoutes:
@@ -107,7 +107,7 @@ std::unique_ptr<RuinProcedure> MakeRuinProcedure(
 
 // Returns the ruin procedures associated with the given ruin strategies.
 std::vector<std::unique_ptr<RuinProcedure>> MakeRuinProcedures(
-    Model* model, const Assignment* assignment, std::mt19937* rnd,
+    Model* model, const Assignment* assignment, std::mt19937_64* rnd,
     const google::protobuf::RepeatedPtrField<
         ::operations_research::routing::RuinStrategy>& ruin_strategies,
     int num_neighbors_for_route_selection) {
@@ -133,7 +133,7 @@ class SequentialRandomizedCompositionStrategy
     : public CompositeRuinProcedure::CompositionStrategy {
  public:
   SequentialRandomizedCompositionStrategy(
-      std::vector<RuinProcedure*> ruin_procedures, std::mt19937* rnd)
+      std::vector<RuinProcedure*> ruin_procedures, std::mt19937_64* rnd)
       : CompositeRuinProcedure::CompositionStrategy(std::move(ruin_procedures)),
         rnd_(*rnd) {}
   const std::vector<RuinProcedure*>& Select() override {
@@ -142,14 +142,14 @@ class SequentialRandomizedCompositionStrategy
   }
 
  private:
-  std::mt19937& rnd_;
+  std::mt19937_64& rnd_;
 };
 
 class SingleRandomCompositionStrategy
     : public CompositeRuinProcedure::CompositionStrategy {
  public:
   SingleRandomCompositionStrategy(std::vector<RuinProcedure*> ruin_procedures,
-                                  std::mt19937* rnd)
+                                  std::mt19937_64* rnd)
       : CompositeRuinProcedure::CompositionStrategy(std::move(ruin_procedures)),
         rnd_(*rnd) {
     single_ruin_.resize(1);
@@ -160,7 +160,7 @@ class SingleRandomCompositionStrategy
   }
 
  private:
-  std::mt19937& rnd_;
+  std::mt19937_64& rnd_;
 
   // Stores the single ruin that will be returned.
   std::vector<RuinProcedure*> single_ruin_;
@@ -170,7 +170,7 @@ class SingleRandomCompositionStrategy
 std::unique_ptr<CompositeRuinProcedure::CompositionStrategy>
 MakeRuinCompositionStrategy(
     absl::Span<const std::unique_ptr<RuinProcedure>> ruins,
-    RuinCompositionStrategy::Value composition_strategy, std::mt19937* rnd) {
+    RuinCompositionStrategy::Value composition_strategy, std::mt19937_64* rnd) {
   std::vector<RuinProcedure*> ruin_ptrs;
   ruin_ptrs.reserve(ruins.size());
   for (const auto& ruin : ruins) {
@@ -196,7 +196,7 @@ MakeRuinCompositionStrategy(
 // Returns a ruin procedure based on the given ruin and recreate parameters.
 std::unique_ptr<RuinProcedure> MakeRuinProcedure(
     const RuinRecreateParameters& parameters, Model* model,
-    const Assignment* assignment, std::mt19937* rnd) {
+    const Assignment* assignment, std::mt19937_64* rnd) {
   const int num_non_start_end_nodes = model->Size() - model->vehicles();
   const uint32_t preferred_num_neighbors =
       parameters.route_selection_neighbors_ratio() * num_non_start_end_nodes;
@@ -401,7 +401,7 @@ class LinearCoolingSchedule : public CoolingSchedule {
 std::unique_ptr<CoolingSchedule> MakeCoolingSchedule(
     const Model& model, const SimulatedAnnealingAcceptanceStrategy& sa_params,
     const NeighborAcceptanceCriterion::SearchState& final_search_state,
-    std::mt19937* rnd) {
+    std::mt19937_64* rnd) {
   const auto [initial_temperature, final_temperature] =
       GetSimulatedAnnealingTemperatures(model, sa_params, rnd);
 
@@ -425,7 +425,7 @@ class SimulatedAnnealingAcceptanceCriterion
     : public NeighborAcceptanceCriterion {
  public:
   explicit SimulatedAnnealingAcceptanceCriterion(
-      std::unique_ptr<CoolingSchedule> cooling_schedule, std::mt19937* rnd)
+      std::unique_ptr<CoolingSchedule> cooling_schedule, std::mt19937_64* rnd)
       : cooling_schedule_(std::move(cooling_schedule)),
         rnd_(*rnd),
         probability_distribution_(0.0, 1.0) {}
@@ -440,7 +440,7 @@ class SimulatedAnnealingAcceptanceCriterion
 
  private:
   std::unique_ptr<CoolingSchedule> cooling_schedule_;
-  std::mt19937 rnd_;
+  std::mt19937_64& rnd_;
   std::uniform_real_distribution<double> probability_distribution_;
 };
 
@@ -662,7 +662,7 @@ double ComputeAverageNonEmptyRouteSize(const Model& model,
 // requires a distribution including all visits. Returns -1 if there are no
 // performed visits.
 int64_t PickRandomPerformedVisit(
-    const Model& model, const Assignment& assignment, std::mt19937& rnd,
+    const Model& model, const Assignment& assignment, std::mt19937_64& rnd,
     std::uniform_int_distribution<int64_t>& node_dist) {
   DCHECK_EQ(node_dist.min(), 0);
   DCHECK_EQ(node_dist.max(), model.Size() - model.vehicles());
@@ -822,7 +822,7 @@ void Solution::RemovePerformedPickupDeliverySibling(int64_t node) {
 }
 
 int64_t Solution::GetRandomAdjacentVisit(
-    int64_t visit, std::mt19937& rnd,
+    int64_t visit, std::mt19937_64& rnd,
     std::bernoulli_distribution& boolean_dist) const {
   DCHECK(BelongsToInitializedRoute(visit));
   DCHECK(!model_.IsStart(visit));
@@ -848,7 +848,7 @@ int64_t Solution::GetRandomAdjacentVisit(
 }
 
 std::vector<int64_t> Solution::GetRandomSequenceOfVisits(
-    int64_t seed_visit, std::mt19937& rnd,
+    int64_t seed_visit, std::mt19937_64& rnd,
     std::bernoulli_distribution& boolean_dist, int size) const {
   DCHECK(BelongsToInitializedRoute(seed_visit));
   DCHECK(!model_.IsStart(seed_visit));
@@ -903,7 +903,7 @@ CompositeRuinProcedure::CompositionStrategy::CompositionStrategy(
 
 CompositeRuinProcedure::CompositeRuinProcedure(
     Model* model, std::vector<std::unique_ptr<RuinProcedure>> ruin_procedures,
-    RuinCompositionStrategy::Value composition_strategy, std::mt19937* rnd)
+    RuinCompositionStrategy::Value composition_strategy, std::mt19937_64* rnd)
     : model_(*model),
       ruin_procedures_(std::move(ruin_procedures)),
       composition_strategy_(MakeRuinCompositionStrategy(
@@ -969,7 +969,7 @@ const Assignment* CompositeRuinProcedure::BuildAssignmentFromNextAccessor(
 }
 
 CloseRoutesRemovalRuinProcedure::CloseRoutesRemovalRuinProcedure(
-    Model* model, std::mt19937* rnd, size_t num_routes,
+    Model* model, std::mt19937_64* rnd, size_t num_routes,
     int num_neighbors_for_route_selection)
     : model_(*model),
       neighbors_manager_(model->GetOrCreateNodeNeighborsByCostClass(
@@ -1037,7 +1037,7 @@ std::function<int64_t(int64_t)> CloseRoutesRemovalRuinProcedure::Ruin(
 }
 
 RandomWalkRemovalRuinProcedure::RandomWalkRemovalRuinProcedure(
-    Model* model, std::mt19937* rnd, int walk_length,
+    Model* model, std::mt19937_64* rnd, int walk_length,
     int num_neighbors_for_route_selection)
     : model_(*model),
       rnd_(*rnd),
@@ -1141,7 +1141,7 @@ int64_t RandomWalkRemovalRuinProcedure::GetNextNodeToRemove(
 }
 
 AdaptiveRandomWalkRemovalRuinProcedure::AdaptiveRandomWalkRemovalRuinProcedure(
-    Model* model, const Assignment* reference_assignment, std::mt19937* rnd,
+    Model* model, const Assignment* reference_assignment, std::mt19937_64* rnd,
     int num_neighbors_for_route_selection, double strengthening_factor,
     double weakening_factor)
     : RandomWalkRemovalRuinProcedure(model, rnd,
@@ -1242,7 +1242,7 @@ void AdaptiveRandomWalkRemovalRuinProcedure::OnReferenceSolutionUpdated(
   strengthening_threshold_ = std::ceil(strengthening_factor_ * avg_arc_cost);
 }
 
-SISRRuinProcedure::SISRRuinProcedure(Model* model, std::mt19937* rnd,
+SISRRuinProcedure::SISRRuinProcedure(Model* model, std::mt19937_64* rnd,
                                      int max_removed_sequence_size,
                                      int avg_num_removed_visits,
                                      double bypass_factor, int num_neighbors)
@@ -1421,8 +1421,9 @@ class RuinAndRecreateDecisionBuilder : public DecisionBuilder {
 
 DecisionBuilder* MakeRuinAndRecreateDecisionBuilder(
     IteratedLocalSearchEventManager* event_manager,
-    const RoutingSearchParameters& parameters, Model* model, std::mt19937* rnd,
-    const Assignment* assignment, std::function<bool()> stop_search,
+    const RoutingSearchParameters& parameters, Model* model,
+    std::mt19937_64* rnd, const Assignment* assignment,
+    std::function<bool()> stop_search,
     LocalSearchFilterManager* filter_manager) {
   std::unique_ptr<RuinProcedure> ruin = MakeRuinProcedure(
       parameters.iterated_local_search_parameters().ruin_recreate_parameters(),
@@ -1438,7 +1439,7 @@ DecisionBuilder* MakeRuinAndRecreateDecisionBuilder(
 
 DecisionBuilder* MakePerturbationDecisionBuilder(
     const RoutingSearchParameters& parameters, Model* model,
-    IteratedLocalSearchEventManager* event_manager, std::mt19937* rnd,
+    IteratedLocalSearchEventManager* event_manager, std::mt19937_64* rnd,
     const Assignment* assignment, std::function<bool()> stop_search,
     LocalSearchFilterManager* filter_manager) {
   switch (
@@ -1457,7 +1458,7 @@ std::unique_ptr<NeighborAcceptanceCriterion> MakeNeighborAcceptanceCriterion(
     const Model& model, IteratedLocalSearchEventManager* event_manager,
     const AcceptanceStrategy& acceptance_strategy,
     const NeighborAcceptanceCriterion::SearchState& final_search_state,
-    std::mt19937* rnd) {
+    std::mt19937_64* rnd) {
   std::unique_ptr<NeighborAcceptanceCriterion> criterion = nullptr;
 
   switch (acceptance_strategy.strategy_case()) {
@@ -1495,7 +1496,7 @@ std::unique_ptr<NeighborAcceptanceCriterion> MakeNeighborAcceptanceCriterion(
     const Model& model, IteratedLocalSearchEventManager* event_manager,
     const AcceptancePolicy& acceptance_policy,
     const NeighborAcceptanceCriterion::SearchState& final_search_state,
-    std::mt19937* rnd) {
+    std::mt19937_64* rnd) {
   // The composition rule is ignored if there is only one strategy.
   DCHECK_GE(acceptance_policy.strategies().size(), 1);
   if (acceptance_policy.strategies().size() == 1) {
@@ -1528,7 +1529,7 @@ std::unique_ptr<NeighborAcceptanceCriterion> MakeNeighborAcceptanceCriterion(
 
 std::pair<double, double> GetSimulatedAnnealingTemperatures(
     const Model& model, const SimulatedAnnealingAcceptanceStrategy& sa_params,
-    std::mt19937* rnd) {
+    std::mt19937_64* rnd) {
   if (!sa_params.automatic_temperatures()) {
     return {sa_params.initial_temperature(), sa_params.final_temperature()};
   }

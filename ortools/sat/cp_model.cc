@@ -56,6 +56,22 @@ std::string BoolVar::Name() const {
   }
 }
 
+bool BoolVar::IsFixedToTrue() const {
+  const IntegerVariableProto& var_proto =
+      builder_->Proto().variables(PositiveRef(index_));
+  DCHECK_EQ(var_proto.domain().size(), 2);
+  return RefIsPositive(index_) ? var_proto.domain(0) == 1
+                               : var_proto.domain(1) == 0;
+}
+
+bool BoolVar::IsFixedToFalse() const {
+  const IntegerVariableProto& var_proto =
+      builder_->Proto().variables(PositiveRef(index_));
+  DCHECK_EQ(var_proto.domain().size(), 2);
+  return RefIsPositive(index_) ? var_proto.domain(1) == 0
+                               : var_proto.domain(0) == 1;
+}
+
 std::string BoolVar::DebugString() const {
   if (builder_ == nullptr) return "null";
   if (index_ < 0) {
@@ -102,7 +118,7 @@ IntVar::IntVar(const BoolVar& var) {
     return;
   }
   builder_ = var.builder_;
-  index_ = builder_->GetOrCreateIntegerIndex(var.index());
+  index_ = builder_->GetOrCreateIntegerView(var.index());
   DCHECK(RefIsPositive(index_));
 }
 
@@ -752,25 +768,25 @@ int CpModelBuilder::IndexFromConstant(int64_t value) {
   return constant_to_index_map_[value];
 }
 
-int CpModelBuilder::GetOrCreateIntegerIndex(int index) {
-  if (index >= 0) {
-    return index;
+int CpModelBuilder::GetOrCreateIntegerView(int bool_index) {
+  if (bool_index >= 0) {
+    return bool_index;
   }
-  if (!bool_to_integer_index_map_.contains(index)) {
-    const int var = PositiveRef(index);
-    const IntegerVariableProto& old_var = cp_model_.variables(var);
+  if (!negative_bool_index_to_integer_index_map_.contains(bool_index)) {
+    const IntegerVariableProto& bool_var =
+        cp_model_.variables(PositiveRef(bool_index));
     const int new_index = cp_model_.variables_size();
     IntegerVariableProto* const new_var = cp_model_.add_variables();
     new_var->add_domain(0);
     new_var->add_domain(1);
-    if (!old_var.name().empty()) {
-      new_var->set_name(absl::StrCat("Not(", old_var.name(), ")"));
+    if (!bool_var.name().empty()) {
+      new_var->set_name(absl::StrCat("Not(", bool_var.name(), ")"));
     }
-    AddEquality(IntVar(new_index, this), BoolVar(index, this));
-    bool_to_integer_index_map_[index] = new_index;
+    AddEquality(IntVar(new_index, this), BoolVar(bool_index, this));
+    negative_bool_index_to_integer_index_map_[bool_index] = new_index;
     return new_index;
   }
-  return bool_to_integer_index_map_[index];
+  return negative_bool_index_to_integer_index_map_[bool_index];
 }
 
 IntVar CpModelBuilder::NewIntVar(const Domain& domain) {
@@ -1543,12 +1559,13 @@ void CpModelBuilder::ClearAssumptions() {
 
 CpModelBuilder CpModelBuilder::Clone() const {
   CpModelBuilder clone;
-  clone.ResetAndImport(cp_model_);
+  clone.ResetFromProto(cp_model_);
   return clone;
 }
 
-void CpModelBuilder::ResetAndImport(const CpModelProto& model_proto) {
+void CpModelBuilder::ResetFromProto(const CpModelProto& model_proto) {
   cp_model_ = model_proto;
+
   // Rebuild constant to index map.
   constant_to_index_map_.clear();
   for (int i = 0; i < cp_model_.variables_size(); ++i) {
@@ -1557,8 +1574,9 @@ void CpModelBuilder::ResetAndImport(const CpModelProto& model_proto) {
       constant_to_index_map_[var.domain(0)] = i;
     }
   }
+
   // This one would be more complicated to rebuild. Let's just clear it.
-  bool_to_integer_index_map_.clear();
+  negative_bool_index_to_integer_index_map_.clear();
 }
 
 BoolVar CpModelBuilder::GetBoolVarFromProtoIndex(int index) {

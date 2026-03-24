@@ -98,3 +98,14 @@ py_test(
         requirement("absl-py"),
     ],
 )
+
+py_test(
+    name = "local_search_test",
+    size = "small",
+    srcs = ["local_search_test.py"],
+    deps = [
+        ":constraint_solver_py",
+        requirement("absl-py"),
+        requirement("numpy"),
+    ],
+)

@@ -33,7 +33,7 @@ pybind_extension(
     visibility = ["//visibility:public"],
     deps = [
         ":knapsack_solver_doc",
-        "//ortools/algorithms:knapsack_solver_lib",
+        "//ortools/algorithms:knapsack_solver",
     ],
 )
 

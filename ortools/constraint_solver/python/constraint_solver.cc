@@ -64,11 +64,13 @@ using ::operations_research::IntTupleSet;
 using ::operations_research::IntVar;
 using ::operations_research::IntVarElement;
 using ::operations_research::IntVarIterator;
+using ::operations_research::IntVarLocalSearchFilter;
 using ::operations_research::IntVarLocalSearchOperator;
 using ::operations_research::LocalSearchFilter;
 using ::operations_research::LocalSearchFilterManager;
 using ::operations_research::LocalSearchOperator;
 using ::operations_research::LocalSearchPhaseParameters;
+using ::operations_research::LocalSearchState;
 using ::operations_research::ModelVisitor;
 using ::operations_research::NumericalRev;
 using ::operations_research::OptimizeVar;
@@ -84,6 +86,7 @@ using ::operations_research::SequenceVar;
 using ::operations_research::SequenceVarElement;
 using ::operations_research::SolutionCollector;
 using ::operations_research::Solver;
+using ::operations_research::SubDagComputer;
 
 // There is no proper error propagation in `constraint_solver` but some
 // operation may fail and end-up calling `Solver::Fail()`. `Solver` offers a
@@ -210,7 +213,6 @@ class PyDecision : public Decision {
   virtual void apply(Solver*) {}
   virtual void refute(Solver*) {}
   virtual void accept(DecisionVisitor*) const {}
-  virtual std::string debug_string() const { return "PyDecision"; }
   void Apply(Solver* s) override {
     try {
       ThrowOnFailure<PyDecision>(this, s,
@@ -236,7 +238,9 @@ class PyDecision : public Decision {
     }
   }
   void Accept(DecisionVisitor* visitor) const override { accept(visitor); }
-  std::string DebugString() const override { return debug_string(); }
+  std::string DebugString() const override {
+    PYBIND11_OVERRIDE_NAME(std::string, Decision, "__str__", DebugString, );
+  }
 };
 
 class PyDecisionHelper : public PyDecision {
@@ -252,9 +256,6 @@ class PyDecisionHelper : public PyDecision {
   void accept(DecisionVisitor* visitor) const override {
     PYBIND11_OVERRIDE(void, PyDecision, accept, visitor);
   }
-  std::string debug_string() const override {
-    PYBIND11_OVERRIDE(std::string, PyDecision, debug_string, );
-  }
 };
 
 class PyDecisionBuilder : public DecisionBuilder {
@@ -262,7 +263,6 @@ class PyDecisionBuilder : public DecisionBuilder {
   using DecisionBuilder::DecisionBuilder;
   virtual ~PyDecisionBuilder() = default;
   virtual Decision* next(Solver*) { return nullptr; }
-  virtual std::string debug_string() const { return "PyDecisionBuilder"; }
   Decision* Next(Solver* s) override {
     try {
       return ThrowOnFailureOrReturn<PyDecisionBuilder, Decision>(
@@ -275,7 +275,10 @@ class PyDecisionBuilder : public DecisionBuilder {
       throw;
     }
   }
-  std::string DebugString() const override { return debug_string(); }
+  std::string DebugString() const override {
+    PYBIND11_OVERRIDE_NAME(std::string, DecisionBuilder, "__str__",
+                           DebugString, );
+  }
 };
 
 class PyDecisionBuilderHelper : public PyDecisionBuilder {
@@ -295,9 +298,6 @@ class PyDecisionBuilderHelper : public PyDecisionBuilder {
       }
     }
     return PyDecisionBuilder::next(s);
-  }
-  std::string debug_string() const override {
-    PYBIND11_OVERRIDE(std::string, PyDecisionBuilder, debug_string, );
   }
 };
 
@@ -327,6 +327,14 @@ class PyLocalSearchOperator : public LocalSearchOperator {
     PYBIND11_OVERRIDE_NAME(bool, LocalSearchOperator, "holds_delta",
                            HoldsDelta, );
   }
+  const LocalSearchOperator* Self() const override {
+    PYBIND11_OVERRIDE_NAME(const LocalSearchOperator*, LocalSearchOperator,
+                           "self", Self, );
+  }
+  std::string DebugString() const override {
+    PYBIND11_OVERRIDE_NAME(std::string, LocalSearchOperator, "__str__",
+                           DebugString, );
+  }
 };
 
 class PyIntVarLocalSearchOperator : public IntVarLocalSearchOperator {
@@ -340,6 +348,10 @@ class PyIntVarLocalSearchOperator : public IntVarLocalSearchOperator {
   void OnStart() override {
     PYBIND11_OVERRIDE_NAME(void, IntVarLocalSearchOperator, "on_start",
                            OnStart, );
+  }
+  std::string DebugString() const override {
+    PYBIND11_OVERRIDE_NAME(std::string, IntVarLocalSearchOperator, "__str__",
+                           DebugString, );
   }
 };
 
@@ -436,9 +448,64 @@ class PySearchMonitor : public SearchMonitor {
   void Install() override {
     PYBIND11_OVERRIDE_NAME(void, SearchMonitor, "install", Install, );
   }
-  std::string DebugString() const override {
-    PYBIND11_OVERRIDE_NAME(std::string, SearchMonitor, "__str__",
-                           DebugString, );
+};
+
+class PyLocalSearchFilter : public LocalSearchFilter {
+ public:
+  using LocalSearchFilter::LocalSearchFilter;
+  void Relax(const Assignment* delta, const Assignment* deltadelta) override {
+    PYBIND11_OVERRIDE_NAME(void, LocalSearchFilter, "relax", Relax, delta,
+                           deltadelta);
+  }
+  void Commit(const Assignment* delta, const Assignment* deltadelta) override {
+    PYBIND11_OVERRIDE_NAME(void, LocalSearchFilter, "commit", Commit, delta,
+                           deltadelta);
+  }
+  bool Accept(const Assignment* delta, const Assignment* deltadelta,
+              int64_t objective_min, int64_t objective_max) override {
+    PYBIND11_OVERRIDE_PURE_NAME(bool, LocalSearchFilter, "accept", Accept,
+                                delta, deltadelta, objective_min,
+                                objective_max);
+  }
+  bool IsIncremental() const override {
+    PYBIND11_OVERRIDE_NAME(bool, LocalSearchFilter, "is_incremental",
+                           IsIncremental, );
+  }
+  void Synchronize(const Assignment* assignment,
+                   const Assignment* delta) override {
+    PYBIND11_OVERRIDE_PURE_NAME(void, LocalSearchFilter, "synchronize",
+                                Synchronize, assignment, delta);
+  }
+  void Revert() override {
+    PYBIND11_OVERRIDE_NAME(void, LocalSearchFilter, "revert", Revert, );
+  }
+  void Reset() override {
+    PYBIND11_OVERRIDE_NAME(void, LocalSearchFilter, "reset", Reset, );
+  }
+  int64_t GetSynchronizedObjectiveValue() const override {
+    PYBIND11_OVERRIDE_NAME(int64_t, LocalSearchFilter,
+                           "get_synchronized_objective_value",
+                           GetSynchronizedObjectiveValue, );
+  }
+  int64_t GetAcceptedObjectiveValue() const override {
+    PYBIND11_OVERRIDE_NAME(int64_t, LocalSearchFilter,
+                           "get_accepted_objective_value",
+                           GetAcceptedObjectiveValue, );
+  }
+};
+
+class PyIntVarLocalSearchFilter : public IntVarLocalSearchFilter {
+ public:
+  using IntVarLocalSearchFilter::IntVarLocalSearchFilter;
+  bool Accept(const Assignment* delta, const Assignment* deltadelta,
+              int64_t objective_min, int64_t objective_max) override {
+    PYBIND11_OVERRIDE_PURE_NAME(bool, IntVarLocalSearchFilter, "accept", Accept,
+                                delta, deltadelta, objective_min,
+                                objective_max);
+  }
+  void OnSynchronize(const Assignment* assignment) override {
+    PYBIND11_OVERRIDE_NAME(void, IntVarLocalSearchFilter, "on_synchronize",
+                           OnSynchronize, assignment);
   }
 };
 
@@ -663,6 +730,11 @@ PYBIND11_MODULE(constraint_solver, m) {
   py::class_<BaseObject>(m, "BaseObject", DOC(operations_research, BaseObject))
       .def("__str__", &BaseObjectPythonHelper::DebugString);
 
+  py::class_<LocalSearchPhaseParameters, BaseObject>(
+      m, "LocalSearchPhaseParameters",
+      DOC(operations_research, LocalSearchPhaseParameters))
+      .def("objective", &LocalSearchPhaseParameters::objective);
+
   py::class_<SearchMonitor, BaseObject, PySearchMonitor>(
       m, "SearchMonitor", DOC(operations_research, SearchMonitor))
       .def(py::init<Solver*>(), py::arg("solver"))
@@ -719,8 +791,7 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("accept", &SearchMonitor::Accept, py::arg("visitor"),
            DOC(operations_research, SearchMonitor, Accept))
       .def("install", &SearchMonitor::Install,
-           DOC(operations_research, SearchMonitor, Install))
-      .def("__str__", &SearchMonitor::DebugString);
+           DOC(operations_research, SearchMonitor, Install));
 
   py::class_<SolutionCollector, SearchMonitor>(m, "SolutionCollector")
       .def(py::init<Solver*, const Assignment*>(), py::arg("solver"),
@@ -782,14 +853,12 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("best", &OptimizeVar::best)
       .def("var", &OptimizeVar::var,
            py::return_value_policy::reference_internal)
-      .def("apply_bound", &OptimizeVar::ApplyBound)
-      .def("__str__", &OptimizeVar::DebugString);
+      .def("apply_bound", &OptimizeVar::ApplyBound);
 
   py::class_<SearchLimit, SearchMonitor>(m, "SearchLimit")
       .def("crossed", &SearchLimit::crossed)
       .def("check", &SearchLimit::Check)
-      .def("init", &SearchLimit::Init)
-      .def("__str__", &SearchLimit::DebugString);
+      .def("init", &SearchLimit::Init);
 
   py::class_<RegularLimit, SearchLimit>(m, "RegularLimit")
       .def_property_readonly("wall_time_ms", &RegularLimit::wall_time)
@@ -1012,8 +1081,9 @@ PYBIND11_MODULE(constraint_solver, m) {
 
   py::class_<ReversibleEngine>(m, "ReversibleEngine").def(py::init<>());
 
-  py::class_<Solver, ReversibleEngine>(
-    m, "Solver", DOC(operations_research, Solver))
+  py::class_<Solver, ReversibleEngine> solver_py(
+      m, "Solver", DOC(operations_research, Solver));
+  solver_py
       .def(py::init<const std::string&>())
       .def(py::init<const std::string&,
                           const ConstraintSolverParameters&>())
@@ -1508,7 +1578,6 @@ PYBIND11_MODULE(constraint_solver, m) {
              s->AddConstraint(ct);
              return ct;
            }, py::return_value_policy::reference_internal)
-      .def("__str__", &Solver::DebugString)
       .def("local_search_profile", &Solver::LocalSearchProfile)
       .def("add", &Solver::AddConstraint,
            DOC(operations_research, Solver, AddConstraint), py::arg("c"),
@@ -1597,20 +1666,6 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def_property_readonly("stamp", &Solver::stamp)
       .def_property_readonly("wall_time_ms", &Solver::wall_time)
       .def_static("memory_usage", &Solver::MemoryUsage)
-      .def("local_search_phase_parameters",
-           [](Solver* s, IntVar* objective, LocalSearchOperator* ls_operator,
-              DecisionBuilder* sub_decision_builder,
-              RegularLimit* limit,
-              LocalSearchFilterManager* filter_manager) {
-             return py::capsule(
-                 s->MakeLocalSearchPhaseParameters(objective, ls_operator,
-                                                   sub_decision_builder, limit,
-                                                   filter_manager),
-                 "LocalSearchPhaseParameters");
-           },
-           py::arg("objective"), py::arg("ls_operator"),
-           py::arg("sub_decision_builder"), py::arg("limit") = nullptr,
-           py::arg("filter_manager") = nullptr)
       .def("default_solver_parameters", &Solver::DefaultSolverParameters)
       .def_property_readonly("parameters", &Solver::parameters)
       .def("assignment", py::overload_cast<>(&Solver::MakeAssignment),
@@ -1852,22 +1907,16 @@ PYBIND11_MODULE(constraint_solver, m) {
            py::return_value_policy::reference_internal)
       .def("local_search_phase",
            [](Solver* s, const std::vector<PropagationBaseObject*>& exprs,
-              DecisionBuilder* db, py::capsule ls_params) {
-             void* ptr = ls_params;
+              DecisionBuilder* db, LocalSearchPhaseParameters* ls_params) {
              return s->MakeLocalSearchPhase(
-                 ToIntVarArray(exprs), db,
-                 reinterpret_cast<LocalSearchPhaseParameters*>(ptr));
+                ToIntVarArray(exprs), db, ls_params);
            },
            py::arg("vars"), py::arg("db"), py::arg("ls_params"),
            py::return_value_policy::reference_internal)
       .def("local_search_phase",
-           [](Solver* s, Assignment* assignment, py::capsule ls_params) {
-             void* ptr = ls_params;
-             return s->MakeLocalSearchPhase(
-                 assignment,
-                 reinterpret_cast<
-                     LocalSearchPhaseParameters*>(ptr));
-           },
+           static_cast<DecisionBuilder* (
+               Solver::*)(Assignment*, LocalSearchPhaseParameters*)>(
+               &Solver::MakeLocalSearchPhase),
            py::arg("assignment"), py::arg("ls_params"),
            py::return_value_policy::reference_internal)
       .def("random_lns_operator",
@@ -1877,6 +1926,14 @@ PYBIND11_MODULE(constraint_solver, m) {
                                               number_of_variables);
            },
            py::arg("exprs"), py::arg("number_of_variables"),
+           py::return_value_policy::reference_internal)
+      .def("random_lns_operator",
+           [](Solver* s, const std::vector<PropagationBaseObject*>& exprs,
+              int number_of_variables, int64_t seed) {
+             return s->MakeRandomLnsOperator(ToIntVarArray(exprs),
+                                              number_of_variables, seed);
+           },
+           py::arg("exprs"), py::arg("number_of_variables"), py::arg("seed"),
            py::return_value_policy::reference_internal)
       .def("operator",
            [](Solver* s, const std::vector<PropagationBaseObject*>& exprs,
@@ -1890,11 +1947,24 @@ PYBIND11_MODULE(constraint_solver, m) {
              return s->ConcatenateOperators(ops);
            },
            py::arg("ops"), py::return_value_policy::reference_internal)
+      .def("make_store_assignment", &Solver::MakeStoreAssignment,
+           py::arg("assignment"), py::return_value_policy::reference_internal)
+      .def("make_accept_filter", &Solver::MakeAcceptFilter,
+           py::return_value_policy::reference_internal)
+      .def("make_reject_filter", &Solver::MakeRejectFilter,
+           py::return_value_policy::reference_internal)
+      .def("make_variable_domain_filter", &Solver::MakeVariableDomainFilter,
+           py::return_value_policy::reference_internal)
       .def("compose",
            [](Solver* s, const std::vector<DecisionBuilder*>& dbs) {
              return s->Compose(dbs);
            },
            py::arg("dbs"), py::return_value_policy::reference_internal)
+      .def("compose",
+           py::overload_cast<DecisionBuilder*, DecisionBuilder*>(
+               &Solver::Compose),
+           py::arg("db1"), py::arg("db2"),
+           py::return_value_policy::reference_internal)
       .def("search_log",
            [](Solver* s, int64_t period, IntVar* var) {
              return s->MakeSearchLog(period, var);
@@ -1915,8 +1985,9 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("phase",
            py::overload_cast<const std::vector<SequenceVar*>&,
                              Solver::SequenceStrategy>(&Solver::MakePhase),
-           DOC(operations_research, Solver, MakePhase),
-           py::return_value_policy::reference_internal);
+                             DOC(operations_research, Solver, MakePhase),
+                             py::return_value_policy::reference_internal);
+  ;
 
   py::class_<PropagationBaseObject, BaseObject>(
       m, "PropagationBaseObject",
@@ -2352,7 +2423,6 @@ PYBIND11_MODULE(constraint_solver, m) {
 
   py::class_<Constraint, PropagationBaseObject>(
       m, "Constraint", DOC(operations_research, Constraint))
-      .def("__str__", &Constraint::DebugString)
       .def("var", &Constraint::Var, DOC(operations_research, Constraint, Var),
            py::return_value_policy::reference_internal)
       .def(
@@ -2593,7 +2663,10 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("enter_search", &LocalSearchOperator::EnterSearch)
       .def("reset", &LocalSearchOperator::Reset)
       .def("has_fragments", &LocalSearchOperator::HasFragments)
-      .def("holds_delta", &LocalSearchOperator::HoldsDelta);
+      .def("holds_delta", &LocalSearchOperator::HoldsDelta)
+      .def("self", &LocalSearchOperator::Self,
+           py::return_value_policy::reference_internal)
+      .def("__str__", &LocalSearchOperator::DebugString);
 
   py::class_<IntVarLocalSearchOperator, LocalSearchOperator,
              PyIntVarLocalSearchOperator>(m, "IntVarLocalSearchOperator", "")
@@ -2619,9 +2692,66 @@ PYBIND11_MODULE(constraint_solver, m) {
           [](PyIntVarLocalSearchOperator* op) { return op->MakeOneNeighbor(); })
       .def("on_start", &IntVarLocalSearchOperator::OnStart);
 
+  py::class_<LocalSearchFilter, BaseObject, PyLocalSearchFilter>(
+      m, "LocalSearchFilter", DOC(operations_research, LocalSearchFilter))
+      .def(py::init<>())
+      .def("accept", &LocalSearchFilter::Accept, py::arg("delta"),
+           py::arg("deltadelta"), py::arg("objective_min"),
+           py::arg("objective_max"))
+      .def("relax", &LocalSearchFilter::Relax, py::arg("delta"),
+           py::arg("deltadelta"))
+      .def("commit", &LocalSearchFilter::Commit, py::arg("delta"),
+           py::arg("deltadelta"))
+      .def("is_incremental", &LocalSearchFilter::IsIncremental)
+      .def("synchronize", &LocalSearchFilter::Synchronize,
+           py::arg("assignment"), py::arg("delta"))
+      .def("revert", &LocalSearchFilter::Revert)
+      .def("reset", &LocalSearchFilter::Reset)
+      .def("get_synchronized_objective_value",
+           &LocalSearchFilter::GetSynchronizedObjectiveValue)
+      .def("get_accepted_objective_value",
+           &LocalSearchFilter::GetAcceptedObjectiveValue);
+
+  py::class_<IntVarLocalSearchFilter, LocalSearchFilter,
+             PyIntVarLocalSearchFilter>(
+      m, "IntVarLocalSearchFilter",
+      DOC(operations_research, IntVarLocalSearchFilter))
+      .def(py::init<const std::vector<IntVar*>&>(), py::arg("vars"))
+      .def("synchronize", &IntVarLocalSearchFilter::Synchronize,
+           py::arg("assignment"), py::arg("delta"))
+      .def(
+          "find_index",
+          [](const IntVarLocalSearchFilter& filter, IntVar* const var) {
+            int64_t index = -1;
+            bool found = filter.FindIndex(var, &index);
+            return py::make_tuple(found, index);
+          },
+          py::arg("var"))
+      .def("add_vars", &IntVarLocalSearchFilter::AddVars, py::arg("vars"))
+      .def("size", &IntVarLocalSearchFilter::Size)
+      .def("var", &IntVarLocalSearchFilter::Var, py::arg("index"),
+           py::return_value_policy::reference_internal)
+      .def("value", &IntVarLocalSearchFilter::Value, py::arg("index"))
+      .def("is_var_synced", &IntVarLocalSearchFilter::IsVarSynced,
+           py::arg("index"));
+
+  py::class_<LocalSearchFilterManager, BaseObject>(
+      m, "LocalSearchFilterManager",
+      DOC(operations_research, LocalSearchFilterManager))
+      .def(py::init<std::vector<LocalSearchFilter*>>(), py::arg("filters"))
+      .def("revert", &LocalSearchFilterManager::Revert)
+      .def("accept", &LocalSearchFilterManager::Accept, py::arg("monitor"),
+           py::arg("delta"), py::arg("deltadelta"), py::arg("objective_min"),
+           py::arg("objective_max"))
+      .def("synchronize", &LocalSearchFilterManager::Synchronize,
+           py::arg("assignment"), py::arg("delta"))
+      .def("get_synchronized_objective_value",
+           &LocalSearchFilterManager::GetSynchronizedObjectiveValue)
+      .def("get_accepted_objective_value",
+           &LocalSearchFilterManager::GetAcceptedObjectiveValue);
+
   py::class_<DecisionBuilder, BaseObject>(
       m, "DecisionBuilderBase", DOC(operations_research, DecisionBuilder))
-      .def("__str__", &DecisionBuilder::DebugString)
       .def_property("name", &DecisionBuilder::GetName,
                     &DecisionBuilder::set_name);
 
@@ -2630,24 +2760,35 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def(py::init<>())
       .def("next", &PyDecisionBuilder::next,
            DOC(operations_research, DecisionBuilder, Next))
-      .def("__str__", &DecisionBuilder::DebugString)
       .def_property("name", &PyDecisionBuilder::GetName,
                     &PyDecisionBuilder::set_name);
 
   py::class_<Decision, BaseObject>(m, "DecisionBase",
-                                   DOC(operations_research, Decision))
-      .def("__str__", &Decision::DebugString);
+                                   DOC(operations_research, Decision));
 
   py::class_<PyDecision, Decision, PyDecisionHelper>(
       m, "Decision", DOC(operations_research, Decision))
       .def(py::init<>())
-      .def("__str__", &Decision::DebugString)
       .def("apply", &PyDecision::apply,
            DOC(operations_research, Decision, Apply))
       .def("refute", &PyDecision::refute,
            DOC(operations_research, Decision, Refute))
       .def("accept", &PyDecision::accept,
            DOC(operations_research, Decision, Accept));
+
+  solver_py.def(
+      "local_search_phase_parameters",
+      [](Solver* s, IntVar* objective, LocalSearchOperator* ls_operator,
+         DecisionBuilder* sub_decision_builder, RegularLimit* limit,
+         LocalSearchFilterManager* filter_manager) {
+        return s->MakeLocalSearchPhaseParameters(objective, ls_operator,
+                                                 sub_decision_builder, limit,
+                                                 filter_manager);
+      },
+      py::arg("objective"), py::arg("ls_operator"),
+      py::arg("sub_decision_builder"), py::arg("limit") = nullptr,
+      py::arg("filter_manager") = nullptr,
+      py::return_value_policy::reference_internal);
 
   // Note: no ctor.
   py::class_<ModelVisitor, BaseObject>(m, "ModelVisitor",
@@ -2762,8 +2903,7 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("next", &SequenceVar::Next,
            DOC(operations_research, SequenceVar, Next))
       .def("size", &SequenceVar::size,
-           DOC(operations_research, SequenceVar, size))
-      .def("__str__", &SequenceVar::DebugString);
+           DOC(operations_research, SequenceVar, size));
 
   py::class_<DisjunctiveConstraint, Constraint>(
       m, "DisjunctiveConstraint",
@@ -2825,4 +2965,106 @@ PYBIND11_MODULE(constraint_solver, m) {
       .def("add_count_assigned_items_dimension",
            &Pack::AddCountAssignedItemsDimension,
            DOC(operations_research, Pack, AddCountAssignedItemsDimension));
+
+  py::class_<SubDagComputer>(m, "SubDagComputer")
+      .def(py::init<>())
+      .def("add_arc",
+           [](SubDagComputer* computer, int tail, int head) {
+             return computer
+                 ->AddArc(SubDagComputer::NodeId(tail),
+                          SubDagComputer::NodeId(head))
+                 .value();
+           })
+      .def("build_graph", &SubDagComputer::BuildGraph)
+      .def("compute_sorted_sub_dag_arcs", [](SubDagComputer* computer,
+                                             int node) {
+        const auto& arcs =
+            computer->ComputeSortedSubDagArcs(SubDagComputer::NodeId(node));
+        std::vector<int> result;
+        result.reserve(arcs.size());
+        for (const auto& arc : arcs) {
+          result.push_back(arc.value());
+        }
+        return result;
+      });
+
+  py::class_<LocalSearchState::Variable>(m, "LocalSearchStateVariable")
+      .def("exists", &LocalSearchState::Variable::Exists)
+      .def("relax", &LocalSearchState::Variable::Relax)
+      .def("set_min", &LocalSearchState::Variable::SetMin)
+      .def("set_max", &LocalSearchState::Variable::SetMax)
+      .def("min", &LocalSearchState::Variable::Min)
+      .def("max", &LocalSearchState::Variable::Max);
+
+  py::class_<LocalSearchState>(m, "LocalSearchState")
+      .def(py::init<>())
+      .def("add_variable_domain",
+           [](LocalSearchState* state, int64_t min, int64_t max) {
+             return state->AddVariableDomain(min, max).value();
+           })
+      .def("relax_variable_domain",
+           [](LocalSearchState* state, int domain_id) {
+             return state->RelaxVariableDomain(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def("tighten_variable_domain_min",
+           [](LocalSearchState* state, int domain_id, int64_t value) {
+             return state->TightenVariableDomainMin(
+                 LocalSearchState::VariableDomainId(domain_id), value);
+           })
+      .def("tighten_variable_domain_max",
+           [](LocalSearchState* state, int domain_id, int64_t value) {
+             return state->TightenVariableDomainMax(
+                 LocalSearchState::VariableDomainId(domain_id), value);
+           })
+      .def("variable_domain_min",
+           [](LocalSearchState* state, int domain_id) {
+             return state->VariableDomainMin(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def("variable_domain_max",
+           [](LocalSearchState* state, int domain_id) {
+             return state->VariableDomainMax(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def(
+          "change_relaxed_variable_domain",
+          [](LocalSearchState* state, int domain_id, int64_t min, int64_t max) {
+            state->ChangeRelaxedVariableDomain(
+                LocalSearchState::VariableDomainId(domain_id), min, max);
+          })
+      .def("propagate_relax",
+           [](LocalSearchState* state, int domain_id) {
+             state->PropagateRelax(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def("propagate_tighten",
+           [](LocalSearchState* state, int domain_id) {
+             return state->PropagateTighten(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def("make_variable",
+           [](LocalSearchState* state, int domain_id) {
+             return state->MakeVariable(
+                 LocalSearchState::VariableDomainId(domain_id));
+           })
+      .def("make_variable_with_relaxed_domain",
+           &LocalSearchState::MakeVariableWithRelaxedDomain)
+      .def_static("dummy_variable", &LocalSearchState::DummyVariable)
+      .def("commit", &LocalSearchState::Commit)
+      .def("revert", &LocalSearchState::Revert)
+      .def("state_is_feasible", &LocalSearchState::StateIsFeasible)
+      .def("add_weighted_sum_constraint",
+           [](LocalSearchState* state, const std::vector<int>& input_domain_ids,
+              const std::vector<int64_t>& input_weights, int64_t input_offset,
+              int output_domain_id) {
+             std::vector<LocalSearchState::VariableDomainId> ids;
+             for (int id : input_domain_ids) {
+               ids.push_back(LocalSearchState::VariableDomainId(id));
+             }
+             state->AddWeightedSumConstraint(
+                 ids, input_weights, input_offset,
+                 LocalSearchState::VariableDomainId(output_domain_id));
+           })
+      .def("compile_constraints", &LocalSearchState::CompileConstraints);
 }  // NOLINT(readability/fn_size)

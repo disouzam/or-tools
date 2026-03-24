@@ -16,6 +16,7 @@
 
 %include "ortools/base/base.i"
 %include "ortools/util/python/proto.i"
+%include "strings/strings.swig"
 
 // PY_CONVERT_HELPER_* macros.
 %include "ortools/constraint_solver/python/constraint_solver_helpers.swig"
@@ -178,6 +179,7 @@ namespace operations_research::routing {
 %unignore Model::VehicleVar;
 %unignore Model::solver;
 %unignore Model::status;
+%unignore Model::nodes;
 %unignore Model::vehicles;
 // Used in samples/ but not in pywraprouting_test.py
 %unignore Model::AddConstantDimensionWithSlack;

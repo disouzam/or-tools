@@ -1038,6 +1038,7 @@ void SharedBoundsManager::ReportPotentialNewBounds(
   }
   if (num_improvements > 0) {
     total_num_improvements_ += num_improvements;
+    timestamp_++;
     VLOG(3) << total_num_improvements_ << "/" << num_variables_;
     bounds_stats_[worker_name].num_exported += num_improvements;
     bounds_stats_[worker_name].num_symmetric += num_symmetric_improvements;
@@ -1087,6 +1088,7 @@ void SharedBoundsManager::FixVariablesFromPartialSolution(
   }
 
   // Fix the variables.
+  int num_changes = 0;
   for (const int var : variables_to_fix) {
     const int64_t old_lb = lower_bounds_[var];
     const int64_t old_ub = upper_bounds_[var];
@@ -1097,6 +1099,7 @@ void SharedBoundsManager::FixVariablesFromPartialSolution(
     lower_bounds_[var] = solution[var];
     upper_bounds_[var] = solution[var];
     changed_variables_since_last_synchronize_.Set(var);
+    ++num_changes;
 
     // This is problematic as we might find a different partial solution.
     // To allow for further investigation, we currently fix it to the debug
@@ -1110,6 +1113,9 @@ void SharedBoundsManager::FixVariablesFromPartialSolution(
         upper_bounds_[var] = debug_solution_[var];
       }
     }
+  }
+  if (num_changes > 0) {
+    timestamp_++;
   }
 }
 
@@ -1148,7 +1154,7 @@ int SharedBoundsManager::RegisterNewId(absl::string_view name) {
 
 void SharedBoundsManager::GetChangedBounds(
     int id, std::vector<int>* variables, std::vector<int64_t>* new_lower_bounds,
-    std::vector<int64_t>* new_upper_bounds) {
+    std::vector<int64_t>* new_upper_bounds, int64_t* timestamp) {
   variables->clear();
   new_lower_bounds->clear();
   new_upper_bounds->clear();
@@ -1174,6 +1180,9 @@ void SharedBoundsManager::GetChangedBounds(
     // Update the stats.
     if (!variables->empty()) {
       bounds_stats_[id_to_name_[id]].num_imported += variables->size();
+    }
+    if (timestamp != nullptr) {
+      *timestamp = timestamp_;
     }
   }
 
@@ -1406,6 +1415,7 @@ void SharedClausesManager::AddBinaryClause(int id, int lit1, int lit2) {
           Literal(BooleanVariable(PositiveRef(lit2)), RefIsPositive(lit2));
       AddEdge(l1.NegatedIndex(), l2.Index());
       AddEdge(l1.Index(), l2.NegatedIndex());
+      ++num_equivalences_;
     }
   }
 }
@@ -1446,7 +1456,7 @@ LiteralIndex SharedClausesManager::GetRepresentative(LiteralIndex a) {
   return representative;
 }
 
-std::vector<int> SharedClausesManager::GetRepresentatives() {
+std::vector<int> SharedClausesManager::GetRepresentatives(int64_t* timestamp) {
   absl::MutexLock mutex_lock(mutex_);
   std::vector<int> representatives;
   const int num_vars = parents_.size() / 2;
@@ -1457,6 +1467,9 @@ std::vector<int> SharedClausesManager::GetRepresentatives() {
     DCHECK_EQ(GetRepresentative(lit.NegatedIndex()), rep.NegatedIndex());
     const int rep_var = rep.Variable().value();
     representatives.push_back(rep.IsPositive() ? rep_var : NegatedRef(rep_var));
+  }
+  if (timestamp != nullptr) {
+    *timestamp = num_equivalences_;
   }
   return representatives;
 }

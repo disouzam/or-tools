@@ -656,7 +656,7 @@ class CustomDecisionBuilder(cp.DecisionBuilder):
         self._counter += 1
         return None
 
-    def debug_string(self):
+    def __str__(self):
         return "CustomDecisionBuilder"
 
 
@@ -672,7 +672,7 @@ class CustomDecision(cp.Decision):
     def refute(self, _):
         pass
 
-    def debug_string(self):
+    def __str__(self):
         return "CustomDecision"
 
 
@@ -691,7 +691,7 @@ class CustomDecisionBuilderCustomDecision(cp.DecisionBuilder):
             return self.__decision
         return None
 
-    def debug_string(self):
+    def __str__(self):
         return "CustomDecisionBuilderCustomDecision"
 
 

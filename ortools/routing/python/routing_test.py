@@ -644,7 +644,7 @@ class ModelTest(absltest.TestCase):
         class MyLocalSearch(constraint_solver.IntVarLocalSearchOperator):
 
             def __init__(self, int_vars):
-                constraint_solver.IntVarLocalSearchOperator.__init__(self, int_vars)
+                super().__init__(int_vars)
                 self.__index = 0
 
             def one_neighbor(self):

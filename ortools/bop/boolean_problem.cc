@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "ortools/sat/boolean_problem.h"
+#include "ortools/bop/boolean_problem.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -35,10 +35,10 @@
 #include "ortools/algorithms/sparse_permutation.h"
 #include "ortools/base/macros/os_support.h"
 #include "ortools/base/strong_vector.h"
+#include "ortools/bop/boolean_problem.pb.h"
 #include "ortools/graph_base/graph.h"
 #include "ortools/graph_base/util.h"
 #include "ortools/port/proto_utils.h"
-#include "ortools/sat/boolean_problem.pb.h"
 #include "ortools/sat/cp_model.pb.h"
 #include "ortools/sat/pb_constraint.h"
 #include "ortools/sat/sat_base.h"
@@ -61,7 +61,17 @@ ABSL_FLAG(std::string, debug_dump_symmetry_graph_to_file, "",
           " time FindLinearBooleanProblemSymmetries() is called.");
 
 namespace operations_research {
-namespace sat {
+namespace bop {
+
+using ::operations_research::sat::BooleanVariable;
+using ::operations_research::sat::Coefficient;
+using ::operations_research::sat::CpModelProto;
+using ::operations_research::sat::IntegerVariableProto;
+using ::operations_research::sat::Literal;
+using ::operations_research::sat::LiteralIndex;
+using ::operations_research::sat::LiteralWithCoeff;
+using ::operations_research::sat::SatSolver;
+using ::operations_research::sat::VariablesAssignment;
 
 using util::RemapGraph;
 
@@ -177,9 +187,9 @@ CpModelProto BooleanProblemToCpModelproto(const LinearBooleanProblem& problem) {
     var->add_domain(1);
   }
   for (const LinearBooleanConstraint& constraint : problem.constraints()) {
-    ConstraintProto* ct = result.add_constraints();
+    sat::ConstraintProto* ct = result.add_constraints();
     ct->set_name(constraint.name());
-    LinearConstraintProto* linear = ct->mutable_linear();
+    sat::LinearConstraintProto* linear = ct->mutable_linear();
     int64_t offset = 0;
     for (int i = 0; i < constraint.literals_size(); ++i) {
       // Note that the new format is slightly different.
@@ -203,7 +213,7 @@ CpModelProto BooleanProblemToCpModelproto(const LinearBooleanProblem& problem) {
                            : std::numeric_limits<int32_t>::max() + offset);
   }
   if (problem.has_objective()) {
-    CpObjectiveProto* objective = result.mutable_objective();
+    sat::CpObjectiveProto* objective = result.mutable_objective();
     int64_t offset = 0;
     for (int i = 0; i < problem.objective().literals_size(); ++i) {
       const int lit = problem.objective().literals(i);
@@ -845,7 +855,7 @@ void ApplyLiteralMappingToBooleanProblem(
 
 // A simple preprocessing step that does basic probing and removes the
 // equivalent literals.
-void ProbeAndSimplifyProblem(SatPostsolver* postsolver,
+void ProbeAndSimplifyProblem(sat::SatPostsolver* postsolver,
                              LinearBooleanProblem* problem) {
   // TODO(user): expose the number of iterations as a parameter.
   for (int iter = 0; iter < 6; ++iter) {
@@ -871,8 +881,8 @@ void ProbeAndSimplifyProblem(SatPostsolver* postsolver,
     solver.Backtrack(0);
     for (int i = 0; i < solver.LiteralTrail().Index(); ++i) {
       const Literal l = solver.LiteralTrail()[i];
-      equiv_map[l.Index()] = kTrueLiteralIndex;
-      equiv_map[l.NegatedIndex()] = kFalseLiteralIndex;
+      equiv_map[l.Index()] = sat::kTrueLiteralIndex;
+      equiv_map[l.NegatedIndex()] = sat::kFalseLiteralIndex;
       postsolver->FixVariable(l);
     }
 
@@ -903,5 +913,43 @@ void ProbeAndSimplifyProblem(SatPostsolver* postsolver,
   }
 }
 
-}  // namespace sat
+bool CanonicalBooleanLinearProblem::AddLinearConstraint(
+    bool use_lower_bound, Coefficient lower_bound, bool use_upper_bound,
+    Coefficient upper_bound, std::vector<LiteralWithCoeff>* cst) {
+  // Canonicalize the linear expression of the constraint.
+  Coefficient bound_shift;
+  Coefficient max_value;
+  if (!ComputeBooleanLinearExpressionCanonicalForm(cst, &bound_shift,
+                                                   &max_value)) {
+    return false;
+  }
+  if (use_upper_bound) {
+    const Coefficient rhs =
+        ComputeCanonicalRhs(upper_bound, bound_shift, max_value);
+    if (!AddConstraint(*cst, max_value, rhs)) return false;
+  }
+  if (use_lower_bound) {
+    // We transform the constraint into an upper-bounded one.
+    for (int i = 0; i < cst->size(); ++i) {
+      (*cst)[i].literal = (*cst)[i].literal.Negated();
+    }
+    const Coefficient rhs =
+        ComputeNegatedCanonicalRhs(lower_bound, bound_shift, max_value);
+    if (!AddConstraint(*cst, max_value, rhs)) return false;
+  }
+  return true;
+}
+
+bool CanonicalBooleanLinearProblem::AddConstraint(
+    absl::Span<const LiteralWithCoeff> cst, Coefficient max_value,
+    Coefficient rhs) {
+  if (rhs < 0) return false;          // Trivially unsatisfiable.
+  if (rhs >= max_value) return true;  // Trivially satisfiable.
+  constraints_.emplace_back(cst.begin(), cst.end());
+  rhs_.push_back(rhs);
+  SimplifyCanonicalBooleanLinearConstraint(&constraints_.back(), &rhs_.back());
+  return true;
+}
+
+}  // namespace bop
 }  // namespace operations_research

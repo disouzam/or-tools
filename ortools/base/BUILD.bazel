@@ -36,33 +36,30 @@ cc_library(
 
 cc_library(
     name = "base",
-    srcs = ["version.cc"],
-    hdrs = [
-        "commandlineflags.h",
-        "init_google.h",
-        "types.h",
-        "version.h",
-    ],
-    copts = [
-        "-DOR_TOOLS_MAJOR=10",
-        "-DOR_TOOLS_MINOR=0",
-        "-DOR_TOOLS_PATCH=9999",
-    ],
+    hdrs = ["init_google.h"],
     linkopts = select({
         "@platforms//os:macos": ["-framework CoreFoundation"],
         "//conditions:default": [],
     }),
     deps = [
-        ":commandlineflags",
-        ":types",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/flags:usage",
-        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:initialize",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:string_view",
     ],
+)
+
+cc_library(
+    name = "version",
+    srcs = ["version.cc"],
+    hdrs = ["version.h"],
+    copts = [
+        "-DOR_TOOLS_MAJOR=10",
+        "-DOR_TOOLS_MINOR=0",
+        "-DOR_TOOLS_PATCH=9999",
+    ],
+    deps = ["@abseil-cpp//absl/strings"],
 )
 
 cc_library(

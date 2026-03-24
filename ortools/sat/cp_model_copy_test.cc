@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "ortools/base/gmock.h"
 #include "ortools/base/parse_test_proto.h"
+#include "ortools/base/protobuf_util.h"
 #include "ortools/linear_solver/linear_solver.pb.h"
 #include "ortools/sat/cp_model.pb.h"
 #include "ortools/sat/cp_model_utils.h"
@@ -211,6 +212,24 @@ TEST(ModelCopyTest, RemoveDuplicateFromEnforcementLiterals) {
   EXPECT_THAT(new_cp_model, EqualsProto(expected_moded));
 }
 
+namespace {
+std::vector<int> ReverseMapping(const std::vector<int>& mapping) {
+  int max_var = 0;
+  for (int lit : mapping) {
+    if (lit == kNoVariableMapping) continue;
+    max_var = std::max(max_var, PositiveRef(lit));
+  }
+  std::vector<int> reverse_mapping(max_var + 1, kNoVariableMapping);
+  for (int i = 0; i < mapping.size(); ++i) {
+    const int mapped = mapping[i];
+    if (mapped == kNoVariableMapping) continue;
+    reverse_mapping[PositiveRef(mapped)] =
+        RefIsPositive(mapped) ? i : NegatedRef(i);
+  }
+  return reverse_mapping;
+}
+}  // namespace
+
 TEST(ModelCopyTest, RemapLiteralsInBoolOr) {
   const CpModelProto initial_model = ParseTestProto(R"pb(
     variables { domain: [ 1, 1 ] }
@@ -230,7 +249,8 @@ TEST(ModelCopyTest, RemapLiteralsInBoolOr) {
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {
       kNoVariableMapping, 1, -3, -3, 1, 0, kNoVariableMapping};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -267,7 +287,8 @@ TEST(ModelCopyTest, RemapLiteralsInBoolAnd) {
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {
       kNoVariableMapping, 0, 1, -2, 0, -2};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -301,7 +322,8 @@ TEST(ModelCopyTest, RemapLiteralsInBoolXor) {
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {
       kNoVariableMapping, kNoVariableMapping, 0, 1, 2, 3};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -324,7 +346,7 @@ TEST(ModelCopyTest, RemapVariablesInLinear) {
     variables { domain: [ 0, 1 ] }
     variables { domain: [ 0, 10 ] }
     variables { domain: [ 0, 10 ] }
-    variables { domain: [ 0, 10 ] }
+    variables { domain: [ 0, 11 ] }
     constraints {
       enforcement_literal: [ 0, 1 ]
       linear {
@@ -338,7 +360,8 @@ TEST(ModelCopyTest, RemapVariablesInLinear) {
   Model model;
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {kNoVariableMapping, -1, 1, 2, 2};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -347,7 +370,7 @@ TEST(ModelCopyTest, RemapVariablesInLinear) {
   const CpModelProto expected_moded = ParseTestProto(R"pb(
     variables { domain: [ 0, 1 ] }
     variables { domain: [ 0, 10 ] }
-    variables { domain: [ 0, 10 ] }
+    variables { domain: [ 0, 11 ] }
     constraints {
       enforcement_literal: [ -1 ]
       linear {
@@ -376,7 +399,8 @@ TEST(ModelCopyTest, RemapVariablesInLinear_CanonicalizeSingleBoolInDomain) {
   Model model;
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {0, -1};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -404,7 +428,8 @@ TEST(ModelCopyTest, RemapVariablesInObjective) {
   Model model;
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {0, -1};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -418,7 +443,7 @@ TEST(ModelCopyTest, RemapVariablesInObjective) {
       vars: [ 0 ]
       coeffs: [ -1 ]
       offset: 6
-      domain: [ -6, 44 ]
+      domain: [ -6, 5 ]
       integer_before_offset: 6
     }
   )pb");
@@ -439,7 +464,8 @@ TEST(ModelCopyTest, RemapVariablesInFloatingPointObjective) {
   Model model;
   PresolveContext context(&model, &new_cp_model, nullptr);
   const std::vector<int> variable_mapping = {0, -1};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);
@@ -474,7 +500,8 @@ TEST(ModelCopyTest, RemapVariablesInSearchStrategyAssumptionsAndHint) {
   PresolveContext context(&model, &new_cp_model, nullptr);
   // x0, x1 mapped to x0, not(x0).
   const std::vector<int> variable_mapping = {0, -1};
-  ModelCopy model_copy(&context, variable_mapping);
+  const std::vector<int> reverse_mapping = ReverseMapping(variable_mapping);
+  ModelCopy model_copy(&context, variable_mapping, reverse_mapping);
 
   model_copy.ImportVariablesAndMaybeIgnoreNames(initial_model);
   model_copy.ImportAndSimplifyConstraints(initial_model, /*first_copy=*/true);

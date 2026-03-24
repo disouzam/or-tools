@@ -1996,9 +1996,9 @@ bool CpModelPresolver::PresolveIntDiv(int c, ConstraintProto* ct) {
   // TODO(user): add support for this case.
   if (HasEnforcementLiteral(*ct)) return false;
 
-  const LinearExpressionProto target = ct->int_div().target();
-  const LinearExpressionProto expr = ct->int_div().exprs(0);
-  const LinearExpressionProto div = ct->int_div().exprs(1);
+  const LinearExpressionProto& target = ct->int_div().target();
+  const LinearExpressionProto& expr = ct->int_div().exprs(0);
+  const LinearExpressionProto& div = ct->int_div().exprs(1);
 
   if (LinearExpressionProtosAreEqual(expr, div)) {
     if (!context_->IntersectDomainWith(target, Domain(1))) {

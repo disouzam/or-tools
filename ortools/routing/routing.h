@@ -847,7 +847,7 @@ class OR_DLL Model {
   /// Returns true if a dimension exists for a given dimension name.
   bool HasDimension(absl::string_view dimension_name) const;
   /// Returns a dimension from its name. Dies if the dimension does not exist.
-  const Dimension& GetDimensionOrDie(const std::string& dimension_name) const;
+  const Dimension& GetDimensionOrDie(absl::string_view dimension_name) const;
   /// Returns a dimension from its name. Returns nullptr if the dimension does
   /// not exist.
   Dimension* GetMutableDimension(const std::string& dimension_name) const;

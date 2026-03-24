@@ -22,7 +22,7 @@
 #include "absl/types/span.h"
 #include "ortools/algorithms/sparse_permutation.h"
 #include "ortools/base/strong_vector.h"
-#include "ortools/sat/boolean_problem.pb.h"
+#include "ortools/bop/boolean_problem.pb.h"
 #include "ortools/sat/cp_model.pb.h"
 #include "ortools/sat/pb_constraint.h"
 #include "ortools/sat/sat_base.h"
@@ -30,15 +30,62 @@
 #include "ortools/sat/simplification.h"
 
 namespace operations_research {
-namespace sat {
+namespace bop {
+
+// Holds a set of boolean linear constraints in canonical form:
+// - The constraint is a linear sum of LiteralWithCoeff <= rhs.
+// - The linear sum satisfies the properties described in
+//   ComputeBooleanLinearExpressionCanonicalForm().
+//
+// TODO(user): Simplify further the constraints.
+//
+// TODO(user): Remove the duplication between this and what the sat solver
+// is doing in AddLinearConstraint() which is basically the same.
+//
+// TODO(user): Remove duplicate constraints? some problems have them, and
+// this is not ideal for the symmetry computation since it leads to a lot of
+// symmetries of the associated graph that are not useful.
+class CanonicalBooleanLinearProblem {
+ public:
+  CanonicalBooleanLinearProblem() = default;
+
+  // This type is neither copyable nor movable.
+  CanonicalBooleanLinearProblem(const CanonicalBooleanLinearProblem&) = delete;
+  CanonicalBooleanLinearProblem& operator=(
+      const CanonicalBooleanLinearProblem&) = delete;
+
+  // Adds a new constraint to the problem. The bounds are inclusive.
+  // Returns false in case of a possible overflow or if the constraint is
+  // never satisfiable.
+  //
+  // TODO(user): Use a return status to distinguish errors if needed.
+  bool AddLinearConstraint(bool use_lower_bound, sat::Coefficient lower_bound,
+                           bool use_upper_bound, sat::Coefficient upper_bound,
+                           std::vector<sat::LiteralWithCoeff>* cst);
+
+  // Getters. All the constraints are guaranteed to be in canonical form.
+  int NumConstraints() const { return constraints_.size(); }
+  sat::Coefficient Rhs(int i) const { return rhs_[i]; }
+  const std::vector<sat::LiteralWithCoeff>& Constraint(int i) const {
+    return constraints_[i];
+  }
+
+ private:
+  bool AddConstraint(absl::Span<const sat::LiteralWithCoeff> cst,
+                     sat::Coefficient max_value, sat::Coefficient rhs);
+
+  std::vector<sat::Coefficient> rhs_;
+  std::vector<std::vector<sat::LiteralWithCoeff>> constraints_;
+};
 
 // Converts a LinearBooleanProblem to a CpModelProto which should eventually
 // replace completely the LinearBooleanProblem proto.
-CpModelProto BooleanProblemToCpModelproto(const LinearBooleanProblem& problem);
+sat::CpModelProto BooleanProblemToCpModelproto(
+    const LinearBooleanProblem& problem);
 
 // Adds the offset and returns the scaled version of the given objective value.
 inline double AddOffsetAndScaleObjectiveValue(
-    const LinearBooleanProblem& problem, Coefficient v) {
+    const LinearBooleanProblem& problem, sat::Coefficient v) {
   return (static_cast<double>(v.value()) + problem.objective().offset()) *
          problem.objective().scaling_factor();
 }
@@ -53,41 +100,44 @@ void ChangeOptimizationDirection(LinearBooleanProblem* problem);
 // Copies the assignment from the solver into the given Boolean vector. Note
 // that variables with a greater index that the given num_variables are ignored.
 void ExtractAssignment(const LinearBooleanProblem& problem,
-                       const SatSolver& solver, std::vector<bool>* assignment);
+                       const sat::SatSolver& solver,
+                       std::vector<bool>* assignment);
 
 // Tests the preconditions of the given problem (as described in the proto) and
 // returns an error if they are not all satisfied.
 absl::Status ValidateBooleanProblem(const LinearBooleanProblem& problem);
 
 // Loads a BooleanProblem into a given SatSolver instance.
-bool LoadBooleanProblem(const LinearBooleanProblem& problem, SatSolver* solver);
+bool LoadBooleanProblem(const LinearBooleanProblem& problem,
+                        sat::SatSolver* solver);
 
 // Same as LoadBooleanProblem() but also free the memory used by the problem
 // during the loading. This allows to use less peak memory. Note that this
 // function clear all the constraints of the given problem (not the objective
 // though).
 bool LoadAndConsumeBooleanProblem(LinearBooleanProblem* problem,
-                                  SatSolver* solver);
+                                  sat::SatSolver* solver);
 
 // Uses the objective coefficient to drive the SAT search towards an
 // heuristically better solution.
 void UseObjectiveForSatAssignmentPreference(const LinearBooleanProblem& problem,
-                                            SatSolver* solver);
+                                            sat::SatSolver* solver);
 
 // Adds the constraint that the objective is smaller than the given upper bound.
 bool AddObjectiveUpperBound(const LinearBooleanProblem& problem,
-                            Coefficient upper_bound, SatSolver* solver);
+                            sat::Coefficient upper_bound,
+                            sat::SatSolver* solver);
 
 // Adds the constraint that the objective is smaller or equals to the given
 // upper bound.
 bool AddObjectiveConstraint(const LinearBooleanProblem& problem,
-                            bool use_lower_bound, Coefficient lower_bound,
-                            bool use_upper_bound, Coefficient upper_bound,
-                            SatSolver* solver);
+                            bool use_lower_bound, sat::Coefficient lower_bound,
+                            bool use_upper_bound, sat::Coefficient upper_bound,
+                            sat::SatSolver* solver);
 
 // Returns the objective value under the current assignment.
-Coefficient ComputeObjectiveValue(const LinearBooleanProblem& problem,
-                                  const std::vector<bool>& assignment);
+sat::Coefficient ComputeObjectiveValue(const LinearBooleanProblem& problem,
+                                       const std::vector<bool>& assignment);
 
 // Checks that an assignment is valid for the given BooleanProblem.
 bool IsAssignmentValid(const LinearBooleanProblem& problem,
@@ -102,7 +152,7 @@ std::string LinearBooleanProblemToCnfString(
 // Store a variable assignment into the given BooleanAssignment proto.
 // Note that only the assigned variables are stored, so the assignment may be
 // incomplete.
-void StoreAssignment(const VariablesAssignment& assignment,
+void StoreAssignment(const sat::VariablesAssignment& assignment,
                      BooleanAssignment* output);
 
 // Constructs a sub-problem formed by the constraints with given indices.
@@ -130,17 +180,18 @@ void FindLinearBooleanProblemSymmetries(
 // of the correct size. It can also map a literal index to kTrueLiteralIndex
 // or kFalseLiteralIndex in order to fix the variable.
 void ApplyLiteralMappingToBooleanProblem(
-    const util_intops::StrongVector<LiteralIndex, LiteralIndex>& mapping,
+    const util_intops::StrongVector<sat::LiteralIndex, sat::LiteralIndex>&
+        mapping,
     LinearBooleanProblem* problem);
 
 // A simple preprocessing step that does basic probing and removes the fixed and
 // equivalent variables. Note that the variable indices will also be remapped in
 // order to be dense. The given postsolver will be updated with the information
 // needed during postsolve.
-void ProbeAndSimplifyProblem(SatPostsolver* postsolver,
+void ProbeAndSimplifyProblem(sat::SatPostsolver* postsolver,
                              LinearBooleanProblem* problem);
 
-}  // namespace sat
+}  // namespace bop
 }  // namespace operations_research
 
 #endif  // ORTOOLS_SAT_BOOLEAN_PROBLEM_H_

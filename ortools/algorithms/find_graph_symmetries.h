@@ -55,7 +55,7 @@ class GraphSymmetryFinder {
   // and bypass the need for reverse adjacency lists.
   //
   // If you don't know this in advance, you may use GraphIsSymmetric() from
-  // ortools/graph_base/util.h.
+  // util/graph/util.h.
   //
   // "graph" must not have multi-arcs.
   // TODO(user): support multi-arcs.

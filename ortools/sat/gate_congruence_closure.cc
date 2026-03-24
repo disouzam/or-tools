@@ -29,6 +29,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/log/vlog_is_on.h"
+#include "absl/numeric/bits.h"
 #include "absl/types/span.h"
 #include "ortools/base/log_severity.h"
 #include "ortools/base/stl_util.h"
@@ -429,6 +430,96 @@ int GateCongruenceClosure::CanonicalizeShortGate(GateId id) {
     gates_inputs_.Shrink(id, new_size);
   }
   CHECK_EQ(gates_type_[id] >> (1 << (gates_inputs_[id].size())), 0);
+
+  // Special case for "a = f(a, b)", this is often simplifiable.
+  if (new_size == 2) {
+    int type = gates_type_[id];
+    Literal t = gates_target_[id];
+    if (!t.IsPositive()) {
+      t = t.Negated();
+      type ^= 0b1111;
+    }
+    const Literal a = gates_inputs_[id][0];
+    const Literal b = gates_inputs_[id][1];
+    CHECK(a.IsPositive());
+    CHECK(b.IsPositive());
+    if (t == a || t == b) {
+      SmallBitset truth_table = 0;
+      for (int i = 0; i < 4; ++i) {
+        const int va = i & 1;
+        const int vb = (i / 2) & 1;
+        const int vt = ((type >> (va + 2 * vb)) & 1) & 1;
+        if (t == a && vt != va) continue;
+        if (t == b && vt != vb) continue;
+        truth_table |= 1 << i;
+      }
+      if (truth_table == 0b1111) {
+        // All assignment are possible, there is no constraints.
+        //
+        // TODO(user): delete the gate.
+        // We transform it to a <=> a for now.
+        gates_type_[id] = 0b10;
+        gates_inputs_[id][0] = gates_target_[id];
+        gates_inputs_.Shrink(id, 1);
+        return 1;
+      } else if (absl::popcount(truth_table) == 2) {
+        // This is the same code as for ids2_ handling.
+        if (truth_table == 0b1100) {
+          VLOG(2) << "fix b to 1";
+          gates_type_[id] = 1;
+          gates_target_[id] = b;
+          gates_inputs_.Shrink(id, 0);
+          return 0;
+        } else if (truth_table == 0b0011) {
+          VLOG(2) << "fix b to 0";
+          gates_type_[id] = 1;
+          gates_target_[id] = b.Negated();
+          gates_inputs_.Shrink(id, 0);
+          return 0;
+        } else if (truth_table == 0b1010) {
+          VLOG(2) << "fix a to 1";
+          gates_type_[id] = 1;
+          gates_target_[id] = a;
+          gates_inputs_.Shrink(id, 0);
+          return 0;
+        } else if (truth_table == 0b0101) {
+          VLOG(2) << "fix a to 1";
+          gates_type_[id] = 1;
+          gates_target_[id] = a.Negated();
+          gates_inputs_.Shrink(id, 0);
+          return 0;
+        } else if (truth_table == 0b0110) {
+          VLOG(2) << "a <=> not(b)";
+          gates_type_[id] = 0b10;
+          gates_target_[id] = a.Negated();
+          gates_inputs_[id][0] = b;
+          gates_inputs_.Shrink(id, 1);
+          return 1;
+        } else if (truth_table == 0b1001) {
+          VLOG(2) << "a <=> b";
+          gates_type_[id] = 0b10;
+          gates_target_[id] = a;
+          gates_inputs_[id][0] = b;
+          gates_inputs_.Shrink(id, 1);
+          return 1;
+        } else {
+          LOG(FATAL) << "all case covered above";
+        }
+      } else if (absl::popcount(truth_table) == 3) {
+        // This is just a clause on (a, b).
+        // TODO(user): Handle this case in a canonical way. One way is to use a
+        // fixed variable for the target.
+        VLOG(3) << "Binary constraint " << GateDebugString(id)
+                << " truth_table " << std::bitset<4>(truth_table);
+      } else {
+        // TODO(user): Handle these cases.
+        CHECK_LE(absl::popcount(truth_table), 1);
+        VLOG(2) << "All fixed or UNSAT." << GateDebugString(id)
+                << " truth_table " << std::bitset<4>(truth_table);
+      }
+    }
+  }
+
   return new_size;
 }
 
@@ -1535,12 +1626,15 @@ bool GateCongruenceClosure::DoOneRound(bool log_info) {
       DCHECK_GE(gates_type_[id], 0);
       DCHECK_EQ(gates_type_[id] >> (1 << (gates_inputs_[id].size())), 0);
 
+      // TODO(user): Refactor to move the mapping in CanonicalizeShortGate().
+      gates_target_[id] =
+          lrat_helper.GetRepresentativeWithProofSupport(gates_target_[id]);
       for (Literal& lit_ref : gates_inputs_[id]) {
         lit_ref = lrat_helper.GetRepresentativeWithProofSupport(lit_ref);
       }
+      const int new_size = CanonicalizeShortGate(id);
 
       // Note that the test below assume canonicalization.
-      const int new_size = CanonicalizeShortGate(id);
       if (new_size == 2 && gates_type_[id] == 0b0110) {
         // TODO(user): we can also have 0b0100 which correspond to a binary
         // clause worth of info (or fixing both variables).
@@ -1604,7 +1698,14 @@ bool GateCongruenceClosure::DoOneRound(bool log_info) {
       if (gates_type_[id] == kAndGateType) continue;
       if (assignment_.LiteralIsAssigned(Literal(gates_target_[id]))) continue;
 
+      // TODO(user): Refactor to move the mapping in CanonicalizeShortGate().
+      gates_target_[id] =
+          lrat_helper.GetRepresentativeWithProofSupport(gates_target_[id]);
+      for (Literal& lit_ref : gates_inputs_[id]) {
+        lit_ref = lrat_helper.GetRepresentativeWithProofSupport(lit_ref);
+      }
       const int new_size = CanonicalizeShortGate(id);
+
       if (new_size == 0) {
         CHECK_EQ(gates_type_[id] & 1, 0);
         const Literal initial_to_fix = Literal(gates_target_[id]).Negated();

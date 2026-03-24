@@ -33,6 +33,7 @@
 #include "ortools/base/strong_vector.h"
 #include "ortools/constraint_solver/assignment.h"
 #include "ortools/constraint_solver/constraint_solver.h"
+#include "ortools/constraint_solver/reversible_engine.h"
 #include "ortools/util/bitset.h"
 
 namespace operations_research {
@@ -2336,6 +2337,42 @@ class LocalSearchMonitor : public SearchMonitor {
 
   /// Install itself on the solver.
   void Install() override;
+};
+
+class LocalSearchPhaseParameters : public BaseObject {
+ public:
+  LocalSearchPhaseParameters(IntVar* objective, SolutionPool* const pool,
+                             LocalSearchOperator* ls_operator,
+                             DecisionBuilder* sub_decision_builder,
+                             RegularLimit* const limit,
+                             LocalSearchFilterManager* filter_manager)
+      : objective_(objective),
+        solution_pool_(pool),
+        ls_operator_(ls_operator),
+        sub_decision_builder_(sub_decision_builder),
+        limit_(limit),
+        filter_manager_(filter_manager) {}
+  ~LocalSearchPhaseParameters() override {}
+  std::string DebugString() const override {
+    return "LocalSearchPhaseParameters";
+  }
+
+  IntVar* objective() const { return objective_; }
+  SolutionPool* solution_pool() const { return solution_pool_; }
+  LocalSearchOperator* ls_operator() const { return ls_operator_; }
+  DecisionBuilder* sub_decision_builder() const {
+    return sub_decision_builder_;
+  }
+  RegularLimit* limit() const { return limit_; }
+  LocalSearchFilterManager* filter_manager() const { return filter_manager_; }
+
+ private:
+  IntVar* const objective_;
+  SolutionPool* const solution_pool_;
+  LocalSearchOperator* const ls_operator_;
+  DecisionBuilder* const sub_decision_builder_;
+  RegularLimit* const limit_;
+  LocalSearchFilterManager* const filter_manager_;
 };
 
 }  // namespace operations_research

@@ -48,7 +48,6 @@
 #include "absl/types/span.h"
 #include "ortools/base/container_logging.h"
 #include "ortools/base/map_util.h"
-#include "ortools/base/status_builder.h"
 #include "ortools/base/stl_util.h"
 #include "ortools/graph_base/graph.h"
 

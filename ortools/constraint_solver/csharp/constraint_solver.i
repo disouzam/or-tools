@@ -59,6 +59,7 @@ class RegularLimitParameters;
 #include "ortools/constraint_solver/search.h"
 #include "ortools/constraint_solver/sequence_var.h"
 #include "ortools/constraint_solver/variables.h"
+
 #include "ortools/constraint_solver/search_limit.pb.h"
 #include "ortools/constraint_solver/solver_parameters.pb.h"
 

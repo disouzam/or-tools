@@ -22,6 +22,7 @@ cc_library(
     deps = [
         "//ortools/base",
         "//ortools/base:log_severity",
+        "//ortools/base:version",
         "//ortools/sat:cp_model_solver",
         "//ortools/sat:cp_model_utils",
         "//ortools/third_party_solvers:gurobi_environment",

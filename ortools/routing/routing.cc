@@ -1093,8 +1093,8 @@ DimensionIndex Model::GetDimensionIndex(
 }
 
 const Dimension& Model::GetDimensionOrDie(
-    const std::string& dimension_name) const {
-  return *dimensions_[gtl::FindOrDie(dimension_name_to_index_, dimension_name)];
+    absl::string_view dimension_name) const {
+  return *dimensions_[gtl::FindOrDie(dimension_name_to_index_, std::string(dimension_name))];
 }
 
 Dimension* Model::GetMutableDimension(const std::string& dimension_name) const {
@@ -3693,7 +3693,7 @@ const Assignment* Model::SolveWithIteratedLocalSearch(
 
   IteratedLocalSearchEventManager event_manager;
 
-  std::mt19937 rnd(/*seed=*/0);
+  std::mt19937_64 rnd(/*seed=*/0);
 
   DecisionBuilder* perturbation_db = MakePerturbationDecisionBuilder(
       parameters, this, &event_manager, &rnd, last_accepted_solution,

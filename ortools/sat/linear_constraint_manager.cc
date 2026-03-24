@@ -869,13 +869,12 @@ bool LinearConstraintManager::ChangeLp(glop::BasisState* solution_state,
   //     constraint_terms_by_var[var_0] = {(ct_0, 2), (ct_1, -1)}
   //     constraint_terms_by_var[var_1] = {(ct_0, 1)}
   //     constraint_terms_by_var[var_2] = {(ct_1, 3)}
-  CompactVectorVector<IntegerVariable, std::pair<ConstraintIndex, IntegerValue>>
+  CompactVectorVector<IntegerVariable, std::pair<int, double>>
       constraint_terms_by_var;
   {
-    std::vector<
-        std::pair<IntegerVariable, std::pair<ConstraintIndex, IntegerValue>>>
+    FixedCapacityVector<std::pair<IntegerVariable, std::pair<int, double>>>
         constraint_terms;
-    constraint_terms.reserve(absl::c_accumulate(
+    constraint_terms.ClearAndReserve(absl::c_accumulate(
         new_constraints_by_score, 0,
         [constraint_infos = &constraint_infos_](
             int sum, const std::pair<ConstraintIndex, double>& candidate) {
@@ -887,34 +886,30 @@ bool LinearConstraintManager::ChangeLp(glop::BasisState* solution_state,
       for (int j = 0; j < constraint_infos_[index].constraint.num_terms; ++j) {
         constraint_terms.push_back(
             {constraint_infos_[index].constraint.vars[j],
-             {index, constraint_infos_[index].constraint.coeffs[j]}});
+             {i, static_cast<double>(
+                     constraint_infos_[index].constraint.coeffs[j].value())}});
       }
     }
     constraint_terms_by_var.ResetFromPairs(constraint_terms);
-    // Since we will do a potentially O(n^2) operation below, let's sort our
-    // lists so we update our `products` vector in a more cache-friendly way.
-    for (IntegerVariable var{0}; var < constraint_terms_by_var.size(); ++var) {
-      absl::Span<std::pair<ConstraintIndex, IntegerValue>> terms =
-          constraint_terms_by_var[var];
-      absl::c_sort(terms);
-    }
   }
-  util_intops::StrongVector<ConstraintIndex, double> products;
-  products.reserve(constraint_infos_.size());
+  std::vector<double> products;
+  products.reserve(new_constraints_by_score.size());
   for (int i = 0; i < constraint_limit; ++i) {
     // Compute the scalar product between the last added constraint and the new
     // constraints.
     if (last_added_candidate != kInvalidConstraintIndex) {
       products.clear();
-      products.resize(constraint_infos_.size(), 0.0);
+      products.resize(new_constraints_by_score.size(), 0.0);
       const LinearConstraint& constraint =
           constraint_infos_[last_added_candidate].constraint;
+      // products[j] holds the scalar product between `constraint` and
+      // `constraint_infos_[new_constraints_by_score[j].first].constraint`.
       for (int j = 0; j < constraint.num_terms; ++j) {
         const IntegerVariable var = constraint.vars[j];
         const double cur_coeff =
             static_cast<double>(constraint.coeffs[j].value());
         for (const auto& [index, coeff] : constraint_terms_by_var[var]) {
-          products[index] += coeff.value() * cur_coeff;
+          products[index] += coeff * cur_coeff;
         }
       }
     }
@@ -930,7 +925,7 @@ bool LinearConstraintManager::ChangeLp(glop::BasisState* solution_state,
       if (constraint_infos_[new_index].is_in_lp) continue;
 
       if (last_added_candidate != kInvalidConstraintIndex) {
-        const double product = products[new_constraints_by_score[j].first];
+        const double product = products[j];
         const double current_orthogonality =
             1.0 - (std::abs(product) /
                    (constraint_infos_[last_added_candidate].l2_norm *

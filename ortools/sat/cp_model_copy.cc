@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "google/protobuf/arena.h"
 #include "google/protobuf/repeated_field.h"
@@ -39,10 +41,11 @@
 #include "ortools/sat/cp_model.pb.h"
 #include "ortools/sat/cp_model_utils.h"
 #include "ortools/sat/lrat_proof_handler.h"
+#include "ortools/sat/model.h"
 #include "ortools/sat/presolve_context.h"
 #include "ortools/sat/sat_base.h"
 #include "ortools/sat/sat_parameters.pb.h"
-#include "ortools/util/saturated_arithmetic.h"
+#include "ortools/sat/synchronization.h"
 #include "ortools/util/sorted_interval_list.h"
 
 namespace operations_research {
@@ -62,26 +65,12 @@ int LiteralToRef(Literal lit) {
 }  // namespace
 
 ModelCopy::ModelCopy(PresolveContext* context,
-                     absl::Span<const int> variable_mapping)
+                     absl::Span<const int> variable_mapping,
+                     absl::Span<const int> reverse_mapping)
     : context_(context),
       variable_mapping_(variable_mapping),
-      lrat_proof_handler_(context->lrat_proof_handler.get()) {
-  if (!variable_mapping.empty()) {
-    int max_mapped_var = 0;
-    for (int mapped_ref : variable_mapping) {
-      if (mapped_ref == kNoVariableMapping) continue;
-      max_mapped_var = std::max(max_mapped_var, PositiveRef(mapped_ref));
-    }
-    reverse_mapping_.resize(max_mapped_var + 1, kNoVariableMapping);
-    for (int i = 0; i < variable_mapping.size(); ++i) {
-      if (variable_mapping[i] == kNoVariableMapping) continue;
-      int& reverse_ref = reverse_mapping_[PositiveRef(variable_mapping[i])];
-      if (reverse_ref == kNoVariableMapping) {
-        reverse_ref = RefIsPositive(variable_mapping[i]) ? i : NegatedRef(i);
-      }
-    }
-  }
-}
+      reverse_mapping_(reverse_mapping),
+      lrat_proof_handler_(context->lrat_proof_handler.get()) {}
 
 void ModelCopy::ImportVariablesAndMaybeIgnoreNames(
     const CpModelProto& in_model) {
@@ -319,19 +308,26 @@ bool ModelCopy::ImportAndSimplifyConstraints(
   return true;
 }
 
+bool ModelCopy::ImportObjective(const CpModelProto& in_model) {
+  if (in_model.has_objective()) {
+    return CopyObjective(in_model.objective());
+  }
+  return true;
+}
+
 void ModelCopy::ImportSolutionHint(const CpModelProto& in_model) {
   if (in_model.has_solution_hint()) {
     CopySolutionHint(in_model.solution_hint());
   }
 }
 
-void ModelCopy::ImportEverythingExceptVariablesConstraintsAndHint(
+bool ModelCopy::ImportEverythingExceptVariablesConstraintsAndHint(
     const CpModelProto& in_model, bool copy_symmetry) {
   if (!in_model.name().empty()) {
     context_->working_model->set_name(in_model.name());
   }
   if (in_model.has_objective()) {
-    CopyObjective(in_model.objective());
+    if (!CopyObjective(in_model.objective())) return false;
   }
   if (in_model.has_floating_point_objective()) {
     CopyFloatingPointObjective(in_model.floating_point_objective());
@@ -377,6 +373,7 @@ void ModelCopy::ImportEverythingExceptVariablesConstraintsAndHint(
     CHECK(variable_mapping_.empty());
     *context_->working_model->mutable_symmetry() = in_model.symmetry();
   }
+  return true;
 }
 
 bool ModelCopy::RemapVariablesInProtoAndContext() {
@@ -1363,12 +1360,23 @@ bool ModelCopy::CopyAndMapCumulative(const ConstraintProto& ct) {
   return true;
 }
 
-void ModelCopy::CopyObjective(const CpObjectiveProto& objective) {
+bool ModelCopy::CopyObjective(const CpObjectiveProto& objective) {
   non_fixed_terms_.clear();
   int64_t offset = 0;
+  int64_t min_activity = 0;
+  int64_t max_activity = 0;
   for (int i = 0; i < objective.vars_size(); ++i) {
     int ref = objective.vars(i);
     int64_t coeff = objective.coeffs(i);
+    DCHECK(RefIsPositive(ref));
+    const Domain& domain = context_->DomainOf(ref);
+    if (coeff > 0) {
+      min_activity += coeff * domain.Min();
+      max_activity += coeff * domain.Max();
+    } else {
+      min_activity += coeff * domain.Max();
+      max_activity += coeff * domain.Min();
+    }
     MapTerm(ref, coeff, offset);
     if (coeff == 0) continue;
     DCHECK(RefIsPositive(ref));
@@ -1388,11 +1396,16 @@ void ModelCopy::CopyObjective(const CpObjectiveProto& objective) {
   }
   new_objective.set_offset(new_objective.offset() +
                            static_cast<double>(offset));
-  for (int64_t& domain : *new_objective.mutable_domain()) {
-    domain = CapSub(domain, offset);
+  if (objective.domain_size() > 0) {
+    Domain domain = ReadDomainFromProto(objective);
+    domain = domain.IntersectionWith(Domain(min_activity, max_activity));
+    if (domain.IsEmpty()) return false;
+    domain = domain.AdditionWith(Domain(-offset));
+    FillDomainInProto(domain, &new_objective);
   }
   new_objective.set_integer_before_offset(
       new_objective.integer_before_offset() + offset);
+  return true;
 }
 
 void ModelCopy::CopyFloatingPointObjective(
@@ -1714,8 +1727,7 @@ bool ImportModelWithBasicPresolveIntoContext(const CpModelProto& in_model,
   copier.ImportVariablesAndMaybeIgnoreNames(in_model);
   if (copier.ImportAndSimplifyConstraints(in_model, /*first_copy=*/true)) {
     copier.ImportSolutionHint(in_model);
-    copier.ImportEverythingExceptVariablesConstraintsAndHint(in_model);
-    return true;
+    return copier.ImportEverythingExceptVariablesConstraintsAndHint(in_model);
   }
   return !context->ModelIsUnsat();
 }
@@ -1730,12 +1742,316 @@ bool ImportModelAndDomainsWithBasicPresolveIntoContext(
   if (copier.ImportAndSimplifyConstraints(in_model, /*first_copy=*/false,
                                           active_constraints)) {
     copier.ImportSolutionHint(in_model);
-    copier.ImportEverythingExceptVariablesConstraintsAndHint(in_model);
+    if (!copier.ImportEverythingExceptVariablesConstraintsAndHint(in_model)) {
+      return false;
+    }
     interval_mapping->assign(copier.InternalIntervalMapping().begin(),
                              copier.InternalIntervalMapping().end());
     return true;
   }
   return !context->ModelIsUnsat();
+}
+
+void VariableDomains::Reset(int num_vars) {
+  domains_.assign(num_vars, Domain());
+  has_two_values_.assign(num_vars, false);
+  is_fixed_.assign(num_vars, false);
+  fixed_vars_.clear();
+}
+
+void VariableDomains::Set(int var, Domain d) {
+  has_two_values_[var] = d.HasTwoValues();
+  if (is_fixed_[var]) {
+    // The code here assume that once fixed, a variable stays that way.
+    CHECK(d.IsFixed());
+  } else if (d.IsFixed()) {
+    is_fixed_[var] = true;
+    fixed_vars_.push_back(var);
+  }
+  domains_[var] = std::move(d);
+}
+
+// Return false if one of the domain becomes empty (UNSAT). This might happen
+// while we are cleaning up all workers at the end of a search.
+bool VariableDomains::UpdateFromSharedBounds(
+    absl::Span<const int> variable_mapping, int64_t& timestamp) {
+  if (shared_bounds_ == nullptr) return true;
+  shared_bounds_->GetChangedBounds(shared_bounds_id_, &tmp_variables_,
+                                   &tmp_new_lower_bounds_,
+                                   &tmp_new_upper_bounds_, &timestamp);
+  for (int i = 0; i < tmp_variables_.size(); ++i) {
+    const int input_var = tmp_variables_[i];
+    const int ref = variable_mapping[input_var];
+    if (ref == kNoVariableMapping) continue;
+    Domain domain;
+    if (RefIsPositive(ref)) {
+      domain = domains_[ref].IntersectionWith(
+          Domain(tmp_new_lower_bounds_[i], tmp_new_upper_bounds_[i]));
+    } else {
+      // Only Boolean variables can be mapped to a negative reference.
+      domain = domains_[PositiveRef(ref)].IntersectionWith(
+          Domain(1 - tmp_new_upper_bounds_[i], 1 - tmp_new_lower_bounds_[i]));
+    }
+    if (domain.IsEmpty()) return false;
+    Set(PositiveRef(ref), domain);
+  }
+  return true;
+}
+
+DenseModelCopy::DenseModelCopy(absl::string_view name,
+                               const CpModelProto& input_model_proto,
+                               SharedBoundsManager* shared_bounds,
+                               SharedClausesManager* shared_clauses)
+    : input_model_proto_(input_model_proto),
+      shared_clauses_(shared_clauses),
+      model_proto_(input_model_proto),
+      var_domains_(name, shared_bounds) {
+  const int num_vars = input_model_proto_.variables_size();
+  input_var_mapping_.resize(num_vars);
+  reverse_mapping_.resize(num_vars);
+  for (int i = 0; i < num_vars; ++i) {
+    input_var_mapping_[i] = i;
+    reverse_mapping_[i] = i;
+  }
+  ResetVarDomains();
+}
+
+bool DenseModelCopy::MaybeUpdate(bool& updated) {
+  updated = false;
+  int64_t new_bounds_timestamp = bounds_timestamp_;
+  int64_t new_equivalences_timestamp = equivalences_timestamp_;
+  if (!var_domains_.UpdateFromSharedBounds(input_var_mapping_,
+                                           new_bounds_timestamp)) {
+    return false;
+  }
+  std::vector<int> input_var_representatives;
+  if (shared_clauses_ != nullptr) {
+    input_var_representatives =
+        shared_clauses_->GetRepresentatives(&new_equivalences_timestamp);
+  }
+
+  // TODO(user): throttle this to avoid recomputing too often?
+  if (new_bounds_timestamp != bounds_timestamp_ ||
+      new_equivalences_timestamp != equivalences_timestamp_) {
+    updated = true;
+    bounds_timestamp_ = new_bounds_timestamp;
+    equivalences_timestamp_ = new_equivalences_timestamp;
+    std::vector<int> new_input_var_mapping;
+    if (!ComputeVariableMapping(input_var_representatives,
+                                new_input_var_mapping) ||
+        !ApplyVariableMapping(new_input_var_mapping)) {
+      return false;
+    }
+    std::swap(input_var_mapping_, new_input_var_mapping);
+  }
+  return true;
+}
+
+bool DenseModelCopy::ComputeVariableMapping(
+    absl::Span<const int> input_var_representatives,
+    std::vector<int>& new_input_var_mapping) {
+  const int num_input_vars = input_var_mapping_.size();
+  const int num_vars = reverse_mapping_.size();
+
+  if (!input_var_representatives.empty()) {
+    // Convert the representative relations between the input variables into
+    // representative relations between the mapped variables (using the current
+    // input_var_mapping_).
+    std::vector<int> var_representatives;
+    var_representatives.reserve(num_vars);
+    for (int i = 0; i < num_vars; ++i) {
+      var_representatives.push_back(i);
+    }
+    for (int i = 0; i < input_var_representatives.size(); ++i) {
+      const int input_rep = input_var_representatives[i];
+      if (input_rep == i) continue;
+      const int mapped_i = input_var_mapping_[i];
+      const int mapped_rep = input_var_mapping_[PositiveRef(input_rep)];
+      if (mapped_i == kNoVariableMapping) continue;
+      if (mapped_rep == kNoVariableMapping) continue;
+      if (RefIsPositive(mapped_i) == RefIsPositive(mapped_rep)) {
+        var_representatives[PositiveRef(mapped_i)] =
+            RefIsPositive(input_rep) ? mapped_rep : NegatedRef(mapped_rep);
+      } else {
+        var_representatives[PositiveRef(mapped_i)] =
+            RefIsPositive(input_rep) ? NegatedRef(mapped_rep) : mapped_rep;
+      }
+    }
+
+    // If a variable is fixed then the equivalent variables can be fixed too.
+    auto fixed_value = [&](int ref) {
+      if (RefIsPositive(ref)) {
+        return var_domains_[ref].FixedValue();
+      } else {
+        // Only Boolean variables can be accessed with a negative reference.
+        return 1 - var_domains_[PositiveRef(ref)].FixedValue();
+      }
+    };
+    auto fix_literal = [&](int literal, bool value) {
+      if (!RefIsPositive(literal)) {
+        literal = PositiveRef(literal);
+        value = !value;
+      }
+      const Domain new_domain =
+          var_domains_[literal].IntersectionWith(Domain(value ? 1 : 0));
+      if (new_domain.IsEmpty()) return false;
+      var_domains_.Set(literal, new_domain);
+      return true;
+    };
+    for (int i = 0; i < num_vars; ++i) {
+      if (var_domains_.IsFixed(i)) {
+        const int rep = var_representatives[i];
+        if (rep != i) {
+          if (!fix_literal(rep, fixed_value(i))) return false;
+        }
+      }
+    }
+    for (int i = 0; i < num_vars; ++i) {
+      const int rep = var_representatives[i];
+      if (rep != i && var_domains_.IsFixed(PositiveRef(rep))) {
+        if (!fix_literal(i, fixed_value(rep))) return false;
+      }
+    }
+  }
+
+  new_input_var_mapping.assign(num_input_vars, kNoVariableMapping);
+  fixed_input_var_values_.resize(num_input_vars,
+                                 std::numeric_limits<int64_t>::min());
+  reverse_mapping_.clear();
+  int first_fixed_literal = -1;
+  for (int input_var = 0; input_var < num_input_vars; ++input_var) {
+    const int ref = input_var_mapping_[input_var];
+    if (ref == kNoVariableMapping) continue;
+    if (var_domains_[PositiveRef(ref)].IsFixed()) {
+      if (RefIsPositive(ref)) {
+        fixed_input_var_values_[input_var] = var_domains_[ref].FixedValue();
+      } else {
+        fixed_input_var_values_[input_var] =
+            1 - var_domains_[PositiveRef(ref)].FixedValue();
+      }
+      // ModelCopy requires that if some literals are fixed, then one of them
+      // must not be removed by the mapping.
+      if (first_fixed_literal == -1 &&
+          (fixed_input_var_values_[input_var] == 0 ||
+           fixed_input_var_values_[input_var] == 1)) {
+        first_fixed_literal = input_var;
+      } else {
+        continue;
+      }
+    }
+    if (new_input_var_mapping[input_var] == kNoVariableMapping) {
+      const int input_rep = input_var < input_var_representatives.size()
+                                ? input_var_representatives[input_var]
+                                : input_var;
+      const int input_rep_var = PositiveRef(input_rep);
+      if (new_input_var_mapping[input_rep_var] == kNoVariableMapping) {
+        new_input_var_mapping[input_var] = reverse_mapping_.size();
+        new_input_var_mapping[input_rep_var] =
+            RefIsPositive(input_rep)
+                ? new_input_var_mapping[input_var]
+                : NegatedRef(new_input_var_mapping[input_var]);
+        reverse_mapping_.push_back(input_var);
+      } else {
+        new_input_var_mapping[input_var] =
+            RefIsPositive(input_rep)
+                ? new_input_var_mapping[input_rep_var]
+                : NegatedRef(new_input_var_mapping[input_rep_var]);
+      }
+    }
+  }
+  // Make sure that if a variable is removed in the current mapping, it stays
+  // removed in the new one.
+  for (int input_var = 0; input_var < num_input_vars; ++input_var) {
+    if (input_var_mapping_[input_var] == kNoVariableMapping) {
+      new_input_var_mapping[input_var] = kNoVariableMapping;
+    }
+  }
+  return true;
+}
+
+bool DenseModelCopy::ApplyVariableMapping(
+    absl::Span<const int> input_var_mapping) {
+  model_proto_.Clear();
+
+  const int num_input_vars = input_model_proto_.variables_size();
+  std::vector<Domain> input_var_domains;
+  input_var_domains.reserve(num_input_vars);
+  for (int input_var = 0; input_var < num_input_vars; ++input_var) {
+    const int current_ref = input_var_mapping_[input_var];
+    if (input_var_mapping[input_var] == kNoVariableMapping) {
+      DCHECK_NE(fixed_input_var_values_[input_var],
+                std::numeric_limits<int64_t>::min());
+      input_var_domains.push_back(Domain(fixed_input_var_values_[input_var]));
+      continue;
+    }
+    DCHECK_NE(current_ref, kNoVariableMapping);
+    if (RefIsPositive(current_ref)) {
+      input_var_domains.push_back(var_domains_[current_ref]);
+    } else {
+      input_var_domains.push_back(
+          var_domains_[PositiveRef(current_ref)].Negation().AdditionWith(
+              Domain(1)));
+    }
+  }
+
+  Model local_model;
+  CpModelProto mapping_proto;
+  auto context = std::make_unique<PresolveContext>(&local_model, &model_proto_,
+                                                   &mapping_proto);
+  ModelCopy copier(context.get(), input_var_mapping, reverse_mapping_);
+  copier.CreateVariablesFromDomains(input_var_domains);
+  if (!copier.ImportAndSimplifyConstraints(input_model_proto_)) {
+    return false;
+  }
+  copier.ImportEverythingExceptVariablesConstraintsAndHint(
+      input_model_proto_, /*copy_symmetry=*/false);
+  if (!copier.RemapVariablesInProtoAndContext()) {
+    return false;
+  }
+  ResetVarDomains();
+  return true;
+}
+
+void DenseModelCopy::ResetVarDomains() {
+  const int num_vars = model_proto_.variables_size();
+  var_domains_.Reset(num_vars);
+  for (int v = 0; v < num_vars; ++v) {
+    var_domains_.Set(v, ReadDomainFromProto(model_proto_.variables(v)));
+  }
+}
+
+std::vector<int64_t> DenseModelCopy::MapSolution(
+    absl::Span<const int64_t> input_solution) {
+  std::vector<int64_t> solution;
+  solution.reserve(reverse_mapping_.size());
+  for (int var = 0; var < reverse_mapping_.size(); ++var) {
+    const int input_ref = reverse_mapping_[var];
+    if (RefIsPositive(input_ref)) {
+      solution.push_back(input_solution[input_ref]);
+    } else {
+      // Only Boolean variables can be accessed with a negative reference.
+      solution.push_back(1 - input_solution[PositiveRef(input_ref)]);
+    }
+  }
+  return solution;
+}
+
+std::vector<int64_t> DenseModelCopy::ReverseMapSolution(
+    absl::Span<const int64_t> solution) {
+  const int num_input_vars = input_var_mapping_.size();
+  std::vector<int64_t> input_solution;
+  input_solution.reserve(num_input_vars);
+  for (int input_var = 0; input_var < num_input_vars; ++input_var) {
+    const int ref = input_var_mapping_[input_var];
+    if (ref == kNoVariableMapping) {
+      input_solution.push_back(fixed_input_var_values_[input_var]);
+      DCHECK_NE(input_solution.back(), std::numeric_limits<int64_t>::min());
+    } else {
+      const int64_t value = solution[PositiveRef(ref)];
+      input_solution.push_back(RefIsPositive(ref) ? value : 1 - value);
+    }
+  }
+  return input_solution;
 }
 
 }  // namespace sat

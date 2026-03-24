@@ -104,7 +104,7 @@ class SimpleMaxFlow {
   void GetSourceSideMinCut(std::vector<NodeIndex>* result);
 
   // Returns the nodes that can reach the sink by non-saturated arcs, the
-  // outgoing arcs of this set form a minimum cut. Note that if this is the
+  // incoming arcs of this set form a minimum cut. Note that if this is the
   // complement set of GetNodeReachableFromSource(), then the min-cut is unique.
   // This works only if Solve() returned OPTIMAL.
   void GetSinkSideMinCut(std::vector<NodeIndex>* result);

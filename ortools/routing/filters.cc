@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -42,6 +43,7 @@
 #include "absl/types/span.h"
 #include "ortools/base/map_util.h"
 #include "ortools/base/strong_vector.h"
+#include "ortools/base/types.h"
 #include "ortools/constraint_solver/assignment.h"
 #include "ortools/constraint_solver/constraint_solver.h"
 #include "ortools/constraint_solver/interval.h"
@@ -5224,65 +5226,5 @@ LocalSearchFilter* MakePathEnergyCostFilter(
 
 // TODO(user): Implement same-vehicle filter. Could be merged with node
 // precedence filter.
-
-MaxLinearExpressionEvaluator::MaxLinearExpressionEvaluator(
-    const std::vector<std::vector<double>>& rows)
-    : num_variables_(rows.empty() ? 0 : rows[0].size()),
-      num_rows_(rows.size()) {
-  if (num_variables_ == 0) return;
-  // Map rows to blocks, see class documentation.
-  const int64_t num_block_rows = (num_rows_ + kBlockSize - 1) / kBlockSize;
-  blocks_.resize(num_block_rows * num_variables_);
-  const int64_t num_full_block_rows = num_rows_ / kBlockSize;
-  for (int64_t br = 0; br < num_full_block_rows; ++br) {
-    for (int64_t v = 0; v < num_variables_; ++v) {
-      Block& block = blocks_[br * num_variables_ + v];
-      for (int c = 0; c < kBlockSize; ++c) {
-        block.coefficients[c] = rows[br * kBlockSize + c][v];
-      }
-    }
-  }
-  // If the block representation represents more rows than the original matrix,
-  // i.e. if num_rows_ % kBlockSize != 0, we need to initialize it and to pad
-  // non-existent rows.
-  if (num_full_block_rows == num_block_rows) return;  // No padding needed.
-  DCHECK_EQ(num_full_block_rows + 1, num_block_rows);
-  Block* last_block_row = &blocks_[num_full_block_rows * num_variables_];
-  const int first_coefficient_to_pad =
-      num_rows_ - num_full_block_rows * kBlockSize;
-  for (int64_t v = 0; v < num_variables_; ++v) {
-    Block& block = last_block_row[v];
-    // Copy original coefficients.
-    for (int c = 0; c < first_coefficient_to_pad; ++c) {
-      const int64_t r = num_full_block_rows * kBlockSize + c;
-      block.coefficients[c] = rows[r][v];
-    }
-    // Pad coefficients with a copy of the first coefficient.
-    for (int c = first_coefficient_to_pad; c < kBlockSize; ++c) {
-      block.coefficients[c] = block.coefficients[0];
-    }
-  }
-}
-
-double MaxLinearExpressionEvaluator::Evaluate(
-    absl::Span<const double> values) const {
-  DCHECK_EQ(values.size(), num_variables_);
-  constexpr double kInfinity = std::numeric_limits<double>::infinity();
-  if (num_rows_ == 0) return -kInfinity;
-  if (num_variables_ == 0) return 0.0;
-  DCHECK_EQ(blocks_.size() % num_variables_, 0);
-  Block maximums;
-  absl::c_fill(maximums.coefficients, -kInfinity);
-  for (auto row = blocks_.begin(); row != blocks_.end();
-       row += num_variables_) {
-    Block evaluations;
-    absl::c_fill(evaluations.coefficients, 0.0);
-    for (int64_t v = 0; v < num_variables_; ++v) {
-      evaluations.BlockMultiplyAdd(row[v], values[v]);
-    }
-    maximums.MaximumWith(evaluations);
-  }
-  return maximums.Maximum();
-}
 
 }  // namespace operations_research::routing

@@ -75,6 +75,33 @@ TEST(BoolVarTest, TestApi) {
   EXPECT_EQ(f.DebugString(), "false");
 }
 
+TEST(BoolVarTest, IsConstant) {
+  CpModelBuilder cp_model;
+  const BoolVar t = cp_model.TrueVar();
+  EXPECT_TRUE(t.IsFixedToTrue());
+  EXPECT_FALSE(t.IsFixedToFalse());
+  EXPECT_FALSE(t.Not().IsFixedToTrue());
+  EXPECT_TRUE(t.Not().IsFixedToFalse());
+
+  const BoolVar f = cp_model.FalseVar();
+  EXPECT_FALSE(f.IsFixedToTrue());
+  EXPECT_TRUE(f.IsFixedToFalse());
+  EXPECT_TRUE(f.Not().IsFixedToTrue());
+  EXPECT_FALSE(f.Not().IsFixedToFalse());
+
+  const BoolVar b1 = cp_model.NewBoolVar();
+  EXPECT_FALSE(b1.IsFixedToTrue());
+  EXPECT_FALSE(b1.IsFixedToFalse());
+
+  const BoolVar b2 = b1.Not();
+  EXPECT_FALSE(b2.IsFixedToTrue());
+  EXPECT_FALSE(b2.IsFixedToFalse());
+
+  const BoolVar b3 = b2.Not();
+  EXPECT_FALSE(b3.IsFixedToTrue());
+  EXPECT_FALSE(b3.IsFixedToFalse());
+}
+
 TEST(IntVarTest, NullAPI) {
   IntVar var;
   EXPECT_EQ(var.Name(), "null");

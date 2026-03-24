@@ -37,8 +37,8 @@ py_test(
     srcs = ["assignment_linear_sum_assignment.py"],
     main = "assignment_linear_sum_assignment.py",
     deps = [
-        requirement("numpy"),
         "//ortools/graph/python:linear_sum_assignment",
+        requirement("numpy"),
     ],
 )
 
@@ -145,8 +145,8 @@ py_test(
     srcs = ["simple_max_flow_program.py"],
     main = "simple_max_flow_program.py",
     deps = [
-        requirement("numpy"),
         "//ortools/graph/python:max_flow",
+        requirement("numpy"),
     ],
 )
 
@@ -183,8 +183,8 @@ py_test(
     srcs = ["simple_min_cost_flow_program.py"],
     main = "simple_min_cost_flow_program.py",
     deps = [
-        requirement("numpy"),
         "//ortools/graph/python:min_cost_flow",
+        requirement("numpy"),
     ],
 )
 

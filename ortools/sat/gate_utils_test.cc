@@ -19,10 +19,12 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/types/span.h"
 #include "gtest/gtest.h"
 #include "ortools/base/gmock.h"
+#include "ortools/sat/cp_model_solver.h"
 #include "ortools/sat/sat_base.h"
 
 namespace operations_research::sat {
@@ -178,6 +180,95 @@ TEST(CanonicalizeFunctionTruthTableTest, RandomTest) {
             << index << " " << new_index;
       }
     }
+  }
+}
+
+TEST(CombineGate2Test, Exhaustive) {
+  for (int type = 0; type < 16; ++type) {
+    for (int a = 0; a < 2; ++a) {
+      for (int b = 0; b < 2; ++b) {
+        ASSERT_EQ(CombineGate2(type, a, b) & 1, (type >> (a + 2 * b)) & 1)
+            << std::bitset<4>(type) << " " << a << " " << b;
+      }
+    }
+  }
+}
+
+// Test reduction by proving infeasible mitter.
+TEST(ReduceTest, Random) {
+  absl::BitGen random;
+
+  // Lets create a random circuit.
+  BinaryCircuit circuit;
+  circuit.num_inputs = 10;
+  circuit.num_vars = 30;
+  for (int i = circuit.num_inputs; i < circuit.num_vars; ++i) {
+    circuit.gates.emplace_back(absl::Uniform(random, 0, 16), i,
+                               absl::Uniform(random, 0, i),
+                               absl::Uniform(random, 0, i));
+  }
+  circuit.ResetBooleanMapping();
+  LOG(INFO) << "random: " << circuit.DebugString();
+
+  // Lets extract subcicuit to compute the last variable.
+  SubcircuitExtractor extractor(circuit);
+  const BinaryCircuit base = extractor.Extract({circuit.num_vars - 1});
+  LOG(INFO) << "base: " << base.DebugString();
+
+  BinaryCircuit simplified = base;
+  RemoveEquivalences({}, &simplified);
+  ReduceGates(&simplified);
+  LOG(INFO) << "simplified: " << simplified.DebugString();
+
+  // The mitter should be infeasible.
+  {
+    BinaryCircuit mitter = ConstructMitter(base, simplified);
+    const CpModelProto cp_model =
+        ConstructCpModelFromBinaryCircuit(mitter, /*enforce_one_output=*/true);
+    const CpSolverResponse response = Solve(cp_model);
+    EXPECT_EQ(response.status(), INFEASIBLE);
+
+    if (mitter.num_inputs < 20) {
+      // Full enumeration should give same result.
+      // We need to force output to 1 though.
+      mitter.gates.emplace_back(0b1111, mitter.outputs[0], 0, 0);
+      ASSERT_FALSE(BinaryCircuitIsFeasible(mitter));
+    }
+  }
+
+  // We can optimize further.
+  const auto cp_sat_solve = [](const CpModelProto proto) {
+    SatParameters params;
+    params.set_log_search_progress(false);
+    params.set_log_to_stdout(false);
+    params.set_catch_sigint_signal(false);
+    params.set_linearization_level(0);
+    params.set_cp_model_probing_level(0);
+    params.set_max_time_in_seconds(2);
+    params.set_use_sat_inprocessing(false);
+    params.set_cp_model_presolve(false);
+    return SolveWithParameters(proto, params);
+  };
+
+  // Detect and remove equivalent variables.
+  {
+    absl::BitGen random;
+    std::vector<std::vector<BooleanVariable>> solutions;
+    for (int i = 0; i < 3; ++i) {
+      operations_research::sat::SimplifyCircuit(10, random, cp_sat_solve,
+                                                &solutions, &simplified);
+      LOG(INFO) << "SIMPLIFIED " << simplified.DebugString();
+    }
+    operations_research::sat::SampleForEquivalences(simplified, random, {});
+  }
+
+  // We should get the same result
+  {
+    const BinaryCircuit mitter = ConstructMitter(base, simplified);
+    const CpModelProto cp_model =
+        ConstructCpModelFromBinaryCircuit(mitter, /*enforce_one_output=*/true);
+    const CpSolverResponse response = Solve(cp_model);
+    EXPECT_EQ(response.status(), INFEASIBLE);
   }
 }
 

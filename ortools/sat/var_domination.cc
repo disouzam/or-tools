@@ -1718,8 +1718,9 @@ bool ExploitDominanceRelations(const VarDomination& var_domination,
       if (context->IsFixed(ref)) continue;
 
       // For strenghtening using domination, just consider >= constraint.
-      const bool only_lb = max_activity <= rhs_ub;
-      const bool only_ub = min_activity >= rhs_lb;
+      const bool domain_is_simple = ct.linear().domain_size() == 2;
+      const bool only_lb = max_activity <= rhs_ub && domain_is_simple;
+      const bool only_ub = min_activity >= rhs_lb && domain_is_simple;
       if (only_lb || only_ub) {
         // Always transform to coeff_magnitude * current_ref + ... >=
         const int current_ref = (coeff > 0) == only_lb ? ref : NegatedRef(ref);

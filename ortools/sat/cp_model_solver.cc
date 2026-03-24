@@ -1470,10 +1470,12 @@ class LnsSolver : public SubSolver {
         // TODO(user): the mapping removes fixed variables but the model
         // copy can fix new ones. Should we update the mapping and do a new
         // copy, and so on until fix point?
-        if (!GenerateMapping(context.get(), variable_mapping, fixed_values)) {
+        std::vector<int> reverse_mapping;
+        if (!GenerateMapping(context.get(), variable_mapping, reverse_mapping,
+                             fixed_values)) {
           return;
         }
-        ModelCopy copier(context.get(), variable_mapping);
+        ModelCopy copier(context.get(), variable_mapping, reverse_mapping);
 
         // Copy and simplify the constraints from the initial model.
         if (!copier.ImportAndSimplifyConstraints(helper_->ModelProto())) {
@@ -1496,8 +1498,10 @@ class LnsSolver : public SubSolver {
 
         // Copy the rest of the model, except symmetries (we don't want to use
         // the symmetry of the main problem in the LNS presolved problem).
-        copier.ImportEverythingExceptVariablesConstraintsAndHint(
-            helper_->ModelProto(), /*copy_symmetry=*/false);
+        if (!copier.ImportEverythingExceptVariablesConstraintsAndHint(
+                helper_->ModelProto(), /*copy_symmetry=*/false)) {
+          return;
+        }
 
         if (!copier.RemapVariablesInProtoAndContext()) {
           return;
@@ -1776,6 +1780,7 @@ class LnsSolver : public SubSolver {
   // constraints, and one fixed literal).
   bool GenerateMapping(PresolveContext* context,
                        std::vector<int>& variable_mapping,
+                       std::vector<int>& reverse_mapping,
                        std::vector<int64_t>& fixed_values) {
     std::vector<int> representatives;
     if (shared_->clauses != nullptr) {
@@ -1827,7 +1832,6 @@ class LnsSolver : public SubSolver {
     int first_fixed_literal = -1;
     variable_mapping.assign(num_vars, kNoVariableMapping);
     fixed_values.reserve(num_vars);
-    int next_var = 0;
     for (int i = 0; i < num_vars; ++i) {
       bool add_to_mapping = true;
       if (context->IsFixed(i)) {
@@ -1845,10 +1849,11 @@ class LnsSolver : public SubSolver {
         const int rep = get_representative(i);
         const int rep_var = PositiveRef(rep);
         if (variable_mapping[rep_var] == kNoVariableMapping) {
-          variable_mapping[i] = next_var++;
+          variable_mapping[i] = reverse_mapping.size();
           variable_mapping[rep_var] = RefIsPositive(rep)
                                           ? variable_mapping[i]
                                           : NegatedRef(variable_mapping[i]);
+          reverse_mapping.push_back(i);
         } else {
           variable_mapping[i] = RefIsPositive(rep)
                                     ? variable_mapping[rep_var]
@@ -1927,7 +1932,7 @@ void SolveCpModelParallel(SharedClasses* shared, Model* global_model) {
   // Synchronize() is called before any LNS neighborhood solvers.
   auto unique_helper = std::make_unique<NeighborhoodGeneratorHelper>(
       &shared->model_proto, &params, shared->response, shared->time_limit,
-      shared->bounds.get());
+      shared->bounds.get(), shared->clauses.get());
   NeighborhoodGeneratorHelper* helper = unique_helper.get();
   subsolvers.push_back(std::move(unique_helper));
 
@@ -2171,19 +2176,6 @@ void SolveCpModelParallel(SharedClasses* shared, Model* global_model) {
     }
   }
 
-  // Used by LS and feasibility jump.
-  // This will automatically be created (only once) if needed.
-  const auto get_linear_model = [&]() {
-    auto* candidate = global_model->Get<LinearModel>();
-    if (candidate != nullptr) return candidate;
-
-    // Create it and transfer ownership.
-    LinearModel* linear_model = new LinearModel(shared->model_proto);
-    global_model->TakeOwnership(linear_model);
-    global_model->Register(linear_model);
-    return global_model->Get<LinearModel>();
-  };
-
   // Add violation LS workers.
   //
   // Compared to LNS, these are not re-entrant, so we need to schedule the
@@ -2225,9 +2217,9 @@ void SolveCpModelParallel(SharedClasses* shared, Model* global_model) {
         local_params.set_feasibility_jump_linearization_level(0);
         interleaved_subsolvers.push_back(
             std::make_unique<FeasibilityJumpSolver>(
-                ls_name, SubSolver::INCOMPLETE, get_linear_model(),
+                ls_name, SubSolver::INCOMPLETE, shared->model_proto,
                 local_params, states, shared->time_limit, shared->response,
-                shared->bounds.get(), shared->ls_hints, shared->stats,
+                shared->bounds.get(), shared->clauses.get(), shared->ls_hints,
                 shared->stat_tables));
       }
     }
@@ -2243,9 +2235,9 @@ void SolveCpModelParallel(SharedClasses* shared, Model* global_model) {
         local_params.set_feasibility_jump_linearization_level(2);
         interleaved_subsolvers.push_back(
             std::make_unique<FeasibilityJumpSolver>(
-                lin_ls_name, SubSolver::INCOMPLETE, get_linear_model(),
+                lin_ls_name, SubSolver::INCOMPLETE, shared->model_proto,
                 local_params, lin_states, shared->time_limit, shared->response,
-                shared->bounds.get(), shared->ls_hints, shared->stats,
+                shared->bounds.get(), shared->clauses.get(), shared->ls_hints,
                 shared->stat_tables));
       }
     }
@@ -2305,9 +2297,9 @@ void SolveCpModelParallel(SharedClasses* shared, Model* global_model) {
         interleaved_subsolvers.push_back(
             std::make_unique<FeasibilityJumpSolver>(
                 local_params.name(), SubSolver::FIRST_SOLUTION,
-                get_linear_model(), local_params, states, shared->time_limit,
-                shared->response, shared->bounds.get(), shared->ls_hints,
-                shared->stats, shared->stat_tables));
+                shared->model_proto, local_params, states, shared->time_limit,
+                shared->response, shared->bounds.get(), shared->clauses.get(),
+                shared->ls_hints, shared->stat_tables));
       } else {
         first_solution_full_subsolvers.push_back(
             std::make_unique<FullProblemSolver>(

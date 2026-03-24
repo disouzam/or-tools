@@ -17,6 +17,7 @@ load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@protobuf//bazel:py_proto_library.bzl", "py_proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("//bazel:compilation_flags.bzl", "SAFE_FP_CODE")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -234,11 +235,12 @@ cc_library(
         "//ortools/glop:parameters_cc_proto",
         "//ortools/linear_solver/proto_solver:glop_proto_solver",
         "//ortools/lp_data",
-        "//ortools/lp_data:base",
+        "//ortools/lp_data:lp_types",
         "//ortools/port:proto_utils",
         "//ortools/util:lazy_mutable_copy",
         "//ortools/util:time_limit",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],
     alwayslink = 1,  # Important! Library is used via dependency injection.
@@ -499,7 +501,7 @@ cc_library(
     hdrs = ["glop_utils.h"],
     deps = [
         ":linear_solver_base",
-        "//ortools/lp_data:base",
+        "//ortools/lp_data:lp_types",
         "@abseil-cpp//absl/log",
     ],
 )
@@ -529,6 +531,7 @@ cc_library(
     name = "model_validator",
     srcs = ["model_validator.cc"],
     hdrs = ["model_validator.h"],
+    copts = SAFE_FP_CODE,
     deps = [
         ":linear_solver_cc_proto",
         "//ortools/base:accurate_sum",

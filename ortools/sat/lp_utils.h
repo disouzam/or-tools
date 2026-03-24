@@ -18,16 +18,16 @@
 
 #include <stdint.h>
 
+#include <cmath>
 #include <limits>
 #include <utility>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "ortools/linear_solver/linear_solver.pb.h"
-#include "ortools/lp_data/lp_data.h"
-#include "ortools/sat/boolean_problem.pb.h"
 #include "ortools/sat/cp_model.pb.h"
 #include "ortools/sat/sat_parameters.pb.h"
 #include "ortools/util/logging.h"
@@ -278,17 +278,6 @@ double ComputeTrueObjectiveLowerBound(
     const CpModelProto& model_proto_with_floating_point_objective,
     const CpObjectiveProto& integer_objective,
     int64_t inner_integer_objective_lower_bound);
-
-// Converts an integer program with only binary variables to a Boolean
-// optimization problem. Returns false if the problem didn't contains only
-// binary integer variable, or if the coefficients couldn't be converted to
-// integer with a good enough precision.
-bool ConvertBinaryMPModelProtoToBooleanProblem(const MPModelProto& mp_model,
-                                               LinearBooleanProblem* problem);
-
-// Converts a Boolean optimization problem to its lp formulation.
-void ConvertBooleanProblemToLinearProgram(const LinearBooleanProblem& problem,
-                                          glop::LinearProgram* lp);
 
 }  // namespace sat
 }  // namespace operations_research

@@ -33,8 +33,8 @@
 #include "gtest/gtest.h"
 #include "ortools/base/gmock.h"
 #include "ortools/base/log_severity.h"
-#include "ortools/base/strong_int.h"
 #include "ortools/base/strong_vector.h"
+#include "ortools/base/strong_int.h"
 
 namespace util {
 

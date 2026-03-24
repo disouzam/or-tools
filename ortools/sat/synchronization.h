@@ -690,10 +690,13 @@ class SharedBoundsManager {
   int RegisterNewId(absl::string_view worker_name);
 
   // When called, returns the set of bounds improvements since
-  // the last time this method was called with the same id.
+  // the last time this method was called with the same id. If timestamp is
+  // not null, it will be set to a logical timestamp which is increased each
+  // time a method call on this instance changes at least one bound.
   void GetChangedBounds(int id, std::vector<int>* variables,
                         std::vector<int64_t>* new_lower_bounds,
-                        std::vector<int64_t>* new_upper_bounds);
+                        std::vector<int64_t>* new_upper_bounds,
+                        int64_t* timestamp = nullptr);
 
   // This should not be called too often as it lock the class for
   // O(num_variables) time.
@@ -730,6 +733,9 @@ class SharedBoundsManager {
   SparseBitset<int> changed_variables_since_last_synchronize_
       ABSL_GUARDED_BY(mutex_);
   int64_t total_num_improvements_ ABSL_GUARDED_BY(mutex_) = 0;
+  // Logical timestamp increased each time ReportPotentialNewBounds() or
+  // FixVariablesFromPartialSolution() changes at least one bound.
+  int64_t timestamp_ ABSL_GUARDED_BY(mutex_) = 0;
 
   // These are only updated on Synchronize().
   std::vector<int64_t> synchronized_lower_bounds_ ABSL_GUARDED_BY(mutex_);
@@ -861,8 +867,9 @@ class SharedClausesManager {
 
   // Returns the representative of each Boolean variable for the equivalence
   // classes of the binary clauses. The representative can be the negation of a
-  // variable.
-  std::vector<int> GetRepresentatives();
+  // variable. If timestamp is not null, it is set to a logical timestamp
+  // increased each time a new Boolean equivalence relation is found.
+  std::vector<int> GetRepresentatives(int64_t* timestamp = nullptr);
 
   // Returns new glue clauses.
   // The spans are guaranteed to remain valid until the next call to
@@ -939,6 +946,7 @@ class SharedClausesManager {
   // representatives for the equivalence relations found in the binary clauses.
   util_intops::StrongVector<LiteralIndex, LiteralIndex> parents_
       ABSL_GUARDED_BY(mutex_);
+  int num_equivalences_ ABSL_GUARDED_BY(mutex_) = 0;
 
   // Stats:
   std::vector<int64_t> id_to_num_exported_ ABSL_GUARDED_BY(mutex_);

@@ -18,7 +18,6 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "binary_search",
-    srcs = [],
     hdrs = ["binary_search.h"],
     deps = [
         "//ortools/base:log_severity",
@@ -50,7 +49,6 @@ cc_test(
 
 cc_library(
     name = "radix_sort",
-    srcs = [],
     hdrs = ["radix_sort.h"],
     deps = [
         "//ortools/base:log_severity",
@@ -102,7 +100,6 @@ cc_library(
     ],
 )
 
-# Hungarian algorithm
 cc_library(
     name = "hungarian",
     srcs = ["hungarian.cc"],
@@ -171,12 +168,12 @@ cc_test(
 )
 
 cc_library(
-    name = "knapsack_solver_lib",
+    name = "knapsack_solver",
     srcs = ["knapsack_solver.cc"],
     hdrs = ["knapsack_solver.h"],
     deps = [
         "//ortools/base:stl_util",
-        "//ortools/linear_solver",
+        "//ortools/linear_solver:linear_solver_base",
         "//ortools/linear_solver:linear_solver_scip",
         "//ortools/sat:cp_model",
         "//ortools/sat:cp_model_cc_proto",
@@ -185,7 +182,7 @@ cc_library(
         "//ortools/util:time_limit",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -195,7 +192,7 @@ cc_test(
     size = "medium",
     srcs = ["knapsack_solver_test.cc"],
     deps = [
-        ":knapsack_solver_lib",
+        ":knapsack_solver",
         "//ortools/base:gmock_main",
         "//ortools/util:time_limit",
         "@abseil-cpp//absl/base:core_headers",
@@ -203,11 +200,6 @@ cc_test(
     ],
 )
 
-# Partitioning and splitting of vector<int64_t>.
-
-# query matching library.
-
-# Graph automorphism libraries.
 cc_library(
     name = "dense_doubly_linked_list",
     hdrs = ["dense_doubly_linked_list.h"],
@@ -313,15 +305,6 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "dynamic_permutation_test",
-    srcs = ["dynamic_permutation_test.cc"],
-    deps = [
-        ":dynamic_permutation",
-        "//ortools/base:gmock_main",
-    ],
-)
-
 cc_library(
     name = "find_graph_symmetries",
     srcs = ["find_graph_symmetries.cc"],
@@ -383,6 +366,7 @@ cc_test(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
@@ -391,9 +375,7 @@ cc_test(
 cc_library(
     name = "binary_indexed_tree",
     hdrs = ["binary_indexed_tree.h"],
-    deps = [
-        "@abseil-cpp//absl/log:check",
-    ],
+    deps = ["@abseil-cpp//absl/log:check"],
 )
 
 cc_test(
@@ -401,6 +383,15 @@ cc_test(
     srcs = ["binary_indexed_tree_test.cc"],
     deps = [
         ":binary_indexed_tree",
+        "//ortools/base:gmock_main",
+    ],
+)
+
+cc_test(
+    name = "dynamic_permutation_test",
+    srcs = ["dynamic_permutation_test.cc"],
+    deps = [
+        ":dynamic_permutation",
         "//ortools/base:gmock_main",
     ],
 )
@@ -435,6 +426,5 @@ cc_test(
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@google_benchmark//:benchmark",
     ],
 )

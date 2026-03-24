@@ -64,23 +64,23 @@ set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY C
 set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig" PROPERTY COMPILE_OPTIONS
   -package ${JAVA_PACKAGE}.sat)
 
-set(SWIG_MODULE_jnicp_model_proto_EXTRA_DEPS java_cp_model_proto)
-swig_add_library(jnicp_model_proto
+set(SWIG_MODULE_jni_cp_model_proto_EXTRA_DEPS java_cp_model_proto)
+swig_add_library(jni_cp_model_proto
   TYPE OBJECT
   LANGUAGE java
   OUTPUT_DIR ${JAVA_PROJECT_DIR}/${JAVA_SRC_PATH}/sat
   SOURCES "${CMAKE_CURRENT_BINARY_DIR}/cp_model_proto.swig")
 
-target_include_directories(jnicp_model_proto PRIVATE
+target_include_directories(jni_cp_model_proto PRIVATE
   ${JNI_INCLUDE_DIRS}
   ${PROJECT_SOURCE_DIR}
   ${PROJECT_BINARY_DIR})
-set_target_properties(jnicp_model_proto PROPERTIES
+set_target_properties(jni_cp_model_proto PROPERTIES
   SWIG_USE_TARGET_INCLUDE_DIRECTORIES ON
   POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(jnicp_model_proto PRIVATE ortools::ortools)
-target_link_libraries(jnicp_model_proto PRIVATE ortools::util_java_jni_helper)
-target_link_libraries(jni${JAVA_ARTIFACT} PRIVATE jnicp_model_proto)
+target_link_libraries(jni_cp_model_proto PRIVATE ortools::ortools)
+target_link_libraries(jni_cp_model_proto PRIVATE ortools::util_java_jni_helper)
+target_link_libraries(jni${JAVA_ARTIFACT} PRIVATE jni_cp_model_proto)
 
 # sat
 set(SWIG_MODULE_jnisat_EXTRA_DEPS java_cp_model_proto)

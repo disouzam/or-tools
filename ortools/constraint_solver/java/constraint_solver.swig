@@ -58,7 +58,6 @@ class RegularLimitParameters;
 #include "ortools/constraint_solver/search.h"
 #include "ortools/constraint_solver/sequence_var.h"
 #include "ortools/constraint_solver/variables.h"
-#include "ortools/constraint_solver/java/javawrapcp_util.h"
 #include "ortools/constraint_solver/search_limit.pb.h"
 #include "ortools/constraint_solver/solver_parameters.pb.h"
 
@@ -867,18 +866,25 @@ import java.util.HashSet;
   public void keepAliveDecisionBuilder(DecisionBuilder db) {}
 %}
 
-%typemap(javaimports) DefaultPhaseParameters %{
-// Used to keep alive java references to objects passed to the C++ layer.
-import java.util.HashSet;
-%}
-
 %typemap(javacode) DefaultPhaseParameters %{
   // Ensure that the GC doesn't collect any DecisionBuilder set from Java
   // as the underlying C++ class stores a shallow copy
-  private HashSet<DecisionBuilder> keepAliveDecisionBuilders;
+  private java.util.HashSet<DecisionBuilder> keepAliveDecisionBuilders;
   public void keepAliveDecisionBuilder(DecisionBuilder db) {
     if (keepAliveDecisionBuilders == null) {
-      keepAliveDecisionBuilders = new HashSet<DecisionBuilder>();
+      keepAliveDecisionBuilders = new java.util.HashSet<DecisionBuilder>();
+    }
+    keepAliveDecisionBuilders.add(db);
+  }
+%}
+
+%typemap(javacode) LocalSearchPhaseParameters %{
+  // Ensure that the GC doesn't collect any DecisionBuilder set from Java
+  // as the underlying C++ class stores a shallow copy
+  private java.util.HashSet<DecisionBuilder> keepAliveDecisionBuilders;
+  public void keepAliveDecisionBuilder(DecisionBuilder db) {
+    if (keepAliveDecisionBuilders == null) {
+      keepAliveDecisionBuilders = new java.util.HashSet<DecisionBuilder>();
     }
     keepAliveDecisionBuilders.add(db);
   }
@@ -897,12 +903,29 @@ import java.util.HashSet;
 %}
 
 %typemap(javain,
-         post="      keepAliveDecisionBuilder($javainput);"
+         post=""
          ) DecisionBuilder* "DecisionBuilder.getCPtr($javainput)"
 
 %typemap(javain,
          post="      keepAliveDecisionBuilder($javainput);"
+         ) DecisionBuilder* Solver::*,
+           DecisionBuilder* DefaultPhaseParameters::*,
+           DecisionBuilder* LocalSearchPhaseParameters::*,
+           DecisionBuilder* SearchMonitor::*,
+           DecisionBuilder* SearchLimit::*,
+           DecisionBuilder* OptimizeVar::*
+         "DecisionBuilder.getCPtr($javainput)"
+
+%typemap(javain,
+         post=""
          ) const std::vector<DecisionBuilder*>& dbs "$javainput"
+
+%typemap(javain,
+         post="      keepAliveDecisionBuilder($javainput);"
+         ) const std::vector<DecisionBuilder*>& Solver::dbs,
+           const std::vector<DecisionBuilder*>& DefaultPhaseParameters::dbs,
+           const std::vector<DecisionBuilder*>& LocalSearchPhaseParameters::dbs
+         "$javainput"
 
 %ignore Solver::SearchLogParameters;
 %ignore Solver::ActiveSearch;
@@ -1682,7 +1705,6 @@ namespace operations_research {
 %include "ortools/constraint_solver/local_search.h"
 %include "ortools/constraint_solver/search.h"
 %include "ortools/constraint_solver/sequence_var.h"
-%include "ortools/constraint_solver/java/javawrapcp_util.h"
 
 // Define templates instantiation after wrapping.
 namespace operations_research {

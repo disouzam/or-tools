@@ -43,13 +43,16 @@ cc_library(
     deps = [
         ":arc_flow_builder",
         ":vector_bin_packing_cc_proto",
-        "//ortools/base",
         "//ortools/base:file",
         "//ortools/base:timer",
         "//ortools/linear_solver",
         "//ortools/linear_solver:linear_solver_scip",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 

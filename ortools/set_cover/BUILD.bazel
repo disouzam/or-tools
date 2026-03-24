@@ -205,7 +205,7 @@ cc_library(
         ":set_cover_invariant",
         ":set_cover_model",
         "//ortools/linear_solver:linear_solver_base",
-        "//ortools/lp_data:base",
+        "//ortools/lp_data:lp_types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:string_view",

@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test for constraint_solver pybind11 layer."""
+"""Test for constraint_solver pybind11 layer.
+
+These are transated from ../local_search_test.cc
+"""
 
 from absl.testing import absltest
 
@@ -1067,18 +1070,26 @@ class LocalSearchOperatorTest(absltest.TestCase):
     def test_subclass_local_search_operator(self):
         class CustomLSOperator(cp.LocalSearchOperator):
 
-            def __init__(self):
-                super().__init__()
-
-            def next_neighbor(self, delta, deltadelta):
+            def next_neighbor(self, unused_delta, unused_deltadelta):
                 return False
 
             def start(self, assignment):
                 pass
 
         solver = cp.Solver("test_subclass_ls")
+        x = solver.new_int_var(0, 10, "x")
         op = CustomLSOperator()
         self.assertIsNotNone(op)
+
+        inner_db = solver.phase(
+            [x],
+            cp.IntVarStrategy.CHOOSE_FIRST_UNBOUND,
+            cp.IntValueStrategy.ASSIGN_MIN_VALUE,
+        )
+        sum_var = solver.new_int_var(0, 10, "sum")
+        ls_params = solver.local_search_phase_parameters(sum_var, op, inner_db)
+        ls = solver.local_search_phase([x], inner_db, ls_params)
+        solver.solve(ls)
 
 
 if __name__ == "__main__":

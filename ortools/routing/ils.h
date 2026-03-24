@@ -77,7 +77,7 @@ class Solution {
   // This must be called for a performed visit belonging to an initialized
   // route.
   int64_t GetRandomAdjacentVisit(
-      int64_t visit, std::mt19937& rnd,
+      int64_t visit, std::mt19937_64& rnd,
       std::bernoulli_distribution& boolean_dist) const;
 
   // Returns a randomly selected sequence of contiguous visits that includes
@@ -85,7 +85,7 @@ class Solution {
   // This must be called for a performed seed visit belonging to an
   // initialized route.
   std::vector<int64_t> GetRandomSequenceOfVisits(
-      int64_t seed_visit, std::mt19937& rnd,
+      int64_t seed_visit, std::mt19937_64& rnd,
       std::bernoulli_distribution& boolean_dist, int size) const;
 
  private:
@@ -150,7 +150,7 @@ class RuinProcedure : public IteratedLocalSearchEventSubscriber {
 // Removes a number of routes that are spatially close together.
 class CloseRoutesRemovalRuinProcedure : public RuinProcedure {
  public:
-  CloseRoutesRemovalRuinProcedure(Model* model, std::mt19937* rnd,
+  CloseRoutesRemovalRuinProcedure(Model* model, std::mt19937_64* rnd,
                                   size_t num_routes,
                                   int num_neighbors_for_route_selection);
   // Returns next accessors where at most num_routes routes have been shortcut,
@@ -163,7 +163,7 @@ class CloseRoutesRemovalRuinProcedure : public RuinProcedure {
   const Model& model_;
   const Model::NodeNeighborsByCostClass* const neighbors_manager_;
   const size_t num_routes_;
-  std::mt19937& rnd_;
+  std::mt19937_64& rnd_;
   std::uniform_int_distribution<int64_t> node_dist_;
   SparseBitset<int64_t> removed_routes_;
 };
@@ -174,7 +174,7 @@ class CloseRoutesRemovalRuinProcedure : public RuinProcedure {
 // single entity.
 class RandomWalkRemovalRuinProcedure : public RuinProcedure {
  public:
-  RandomWalkRemovalRuinProcedure(Model* model, std::mt19937* rnd,
+  RandomWalkRemovalRuinProcedure(Model* model, std::mt19937_64* rnd,
                                  int walk_length,
                                  int num_neighbors_for_route_selection);
 
@@ -191,7 +191,7 @@ class RandomWalkRemovalRuinProcedure : public RuinProcedure {
   }
 
   const Model& model_;
-  std::mt19937& rnd_;
+  std::mt19937_64& rnd_;
   std::uniform_int_distribution<int64_t> node_dist_;
 
  private:
@@ -209,7 +209,7 @@ class AdaptiveRandomWalkRemovalRuinProcedure
  public:
   AdaptiveRandomWalkRemovalRuinProcedure(Model* model,
                                          const Assignment* reference_assignment,
-                                         std::mt19937* rnd,
+                                         std::mt19937_64* rnd,
                                          int num_neighbors_for_route_selection,
                                          double strengthening_factor,
                                          double weakening_factor);
@@ -254,7 +254,8 @@ class CompositeRuinProcedure : public RuinProcedure {
 
   CompositeRuinProcedure(
       Model* model, std::vector<std::unique_ptr<RuinProcedure>> ruin_procedures,
-      RuinCompositionStrategy::Value composition_strategy, std::mt19937* rnd);
+      RuinCompositionStrategy::Value composition_strategy,
+      std::mt19937_64* rnd);
 
   std::function<int64_t(int64_t)> Ruin(const Assignment* assignment) override;
 
@@ -293,7 +294,7 @@ class CompositeRuinProcedure : public RuinProcedure {
 // See also SISRRuinStrategy in ils.proto.
 class SISRRuinProcedure : public RuinProcedure {
  public:
-  SISRRuinProcedure(Model* model, std::mt19937* rnd,
+  SISRRuinProcedure(Model* model, std::mt19937_64* rnd,
                     int max_removed_sequence_size, int avg_num_removed_visits,
                     double bypass_factor, int num_neighbors);
 
@@ -312,7 +313,7 @@ class SISRRuinProcedure : public RuinProcedure {
                                            int sequence_size);
 
   const Model& model_;
-  std::mt19937& rnd_;
+  std::mt19937_64& rnd_;
   int max_removed_sequence_size_;
   int avg_num_removed_visits_;
   double bypass_factor_;
@@ -328,7 +329,7 @@ class SISRRuinProcedure : public RuinProcedure {
 // Local Search approach.
 DecisionBuilder* MakePerturbationDecisionBuilder(
     const RoutingSearchParameters& parameters, Model* model,
-    IteratedLocalSearchEventManager* event_manager, std::mt19937* rnd,
+    IteratedLocalSearchEventManager* event_manager, std::mt19937_64* rnd,
     const Assignment* assignment, std::function<bool()> stop_search,
     LocalSearchFilterManager* filter_manager);
 
@@ -362,13 +363,13 @@ std::unique_ptr<NeighborAcceptanceCriterion> MakeNeighborAcceptanceCriterion(
     const Model& model, IteratedLocalSearchEventManager* event_manager,
     const AcceptancePolicy& acceptance_policy,
     const NeighborAcceptanceCriterion::SearchState& final_search_state,
-    std::mt19937* rnd);
+    std::mt19937_64* rnd);
 
 // Returns initial and final simulated annealing temperatures according to the
 // given simulated annealing input parameters.
 std::pair<double, double> GetSimulatedAnnealingTemperatures(
     const Model& model, const SimulatedAnnealingAcceptanceStrategy& sa_params,
-    std::mt19937* rnd);
+    std::mt19937_64* rnd);
 
 }  // namespace operations_research::routing
 

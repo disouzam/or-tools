@@ -171,7 +171,7 @@ cc_library(
         "//ortools/glop:parameters_cc_proto",
         "//ortools/glop:parameters_validation",
         "//ortools/lp_data",
-        "//ortools/lp_data:base",
+        "//ortools/lp_data:lp_types",
         "//ortools/math_opt:callback_cc_proto",
         "//ortools/math_opt:infeasible_subsystem_cc_proto",
         "//ortools/math_opt:model_cc_proto",

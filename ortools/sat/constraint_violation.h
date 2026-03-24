@@ -14,7 +14,6 @@
 #ifndef ORTOOLS_SAT_CONSTRAINT_VIOLATION_H_
 #define ORTOOLS_SAT_CONSTRAINT_VIOLATION_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -27,7 +26,6 @@
 #include "absl/types/span.h"
 #include "ortools/base/stl_util.h"
 #include "ortools/sat/cp_model.pb.h"
-#include "ortools/sat/cp_model_utils.h"
 #include "ortools/sat/sat_parameters.pb.h"
 #include "ortools/sat/util.h"
 #include "ortools/util/bitset.h"
@@ -99,8 +97,9 @@ class LinearIncrementalEvaluator {
   bool VarIsConsistent(int var) const;
 
   // Intersect constraint bounds with [lb..ub].
-  // It returns true if a reduction of the domain took place.
-  bool ReduceBounds(int c, int64_t lb, int64_t ub);
+  // Sets reduced to true if a reduction of the domain took place.
+  // Returns false if the model becomes UNSAT.
+  bool ReduceBounds(int c, int64_t lb, int64_t ub, bool& reduced);
 
   // Model getters.
   int num_constraints() const { return num_constraints_; }
@@ -148,15 +147,6 @@ class LinearIncrementalEvaluator {
     return absl::MakeSpan(&row_var_buffer_[data.start], size);
   }
 
-  // Remaps the variables to their representative or to a fixed value. If
-  // variable_mapping[i] is equal to kNoVariableMapping then the variable is
-  // fixed to fixed_values[i]. Otherwise, variable i is remapped to
-  // variable_mapping[i], which must be a positive ref (unless i is a Boolean
-  // variable, in which case both positive and negative references are allowed).
-  // Returns true if a constraint might have been modified.
-  bool RemapVariables(absl::Span<const int> variable_mapping,
-                      absl::Span<const int64_t> fixed_values);
-
  private:
   // Cell in the sparse matrix.
   struct Entry {
@@ -176,10 +166,6 @@ class LinearIncrementalEvaluator {
     int num_neg_literal = 0;
     int linear_start = 0;
     int num_linear_entries = 0;
-
-    bool empty() const {
-      return num_pos_literal + num_neg_literal + num_linear_entries == 0;
-    }
   };
 
   absl::Span<const int> VarToConstraints(int var) const {
@@ -255,9 +241,7 @@ class LinearIncrementalEvaluator {
 // View of a generic (non linear) constraint for the LsEvaluator.
 class CompiledConstraint {
  public:
-  explicit CompiledConstraint(absl::Span<const int> enforcement_literals)
-      : enforcement_literals_(enforcement_literals.begin(),
-                              enforcement_literals.end()) {}
+  CompiledConstraint() = default;
   virtual ~CompiledConstraint() = default;
 
   // Recomputes the violation of the constraint from scratch.
@@ -273,25 +257,12 @@ class CompiledConstraint {
       absl::Span<const int64_t> solution_with_new_value);
 
   // Returns the sorted vector of variables used by this constraint. This is
-  // used to know when a violation might change, and is only called once during
+  // used to known when a violation might change, and is only called once during
   // initialization, so speed is not to much of a concern here.
-  virtual std::vector<int> UsedVariables() const = 0;
-
-  // Remaps the enforcement literals to their representative or to a fixed
-  // value. If variable_mapping[i] is equal to kNoVariableMapping then the
-  // variable is fixed to fixed_values[i]. Otherwise, variable i is remapped to
-  // variable_mapping[i], which can be a positive or negative ref.
-  // Returns true if the constraint might have been modified.
-  bool RemapEnforcementLiterals(absl::Span<const int> variable_mapping,
-                                absl::Span<const int64_t> fixed_values);
-
-  // Same as above, but for the other variables used by the constraint, and only
-  // if supported (it is valid but less efficient for the overall local search
-  // algorithms to leave some or all variables unmapped). Non Boolean variables
-  // must not be mapped to a negative ref.
-  virtual bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) = 0;
+  //
+  // The global proto is needed to resolve interval variables reference.
+  virtual std::vector<int> UsedVariables(
+      const CpModelProto& model_proto) const = 0;
 
   // The cached violation of this constraint.
   int64_t violation() const { return violation_; }
@@ -303,16 +274,6 @@ class CompiledConstraint {
   // of ViolationDelta().
   virtual int64_t ComputeViolation(absl::Span<const int64_t> solution) = 0;
 
-  std::vector<int> AddEnforcementLiterals(std::vector<int>&& used_vars) const {
-    for (const int lit : enforcement_literals_) {
-      used_vars.push_back(PositiveRef(lit));
-    }
-    gtl::STLSortAndRemoveDuplicates(&used_vars);
-    used_vars.shrink_to_fit();
-    return used_vars;
-  }
-
-  std::vector<int> enforcement_literals_;
   int64_t violation_;
 };
 
@@ -323,12 +284,17 @@ class CompiledConstraintWithProto : public CompiledConstraint {
   explicit CompiledConstraintWithProto(const ConstraintProto& ct_proto);
   ~CompiledConstraintWithProto() override = default;
 
+  const ConstraintProto& ct_proto() const { return ct_proto_; }
+
   int64_t ComputeViolation(absl::Span<const int64_t> solution) final;
 
   // Returns the delta if var changes from old_value to solution[var].
   int64_t ViolationDelta(
       int var, int64_t old_value,
       absl::Span<const int64_t> solution_with_new_value) final;
+
+  // This just returns the variables used by the stored ct_proto_.
+  std::vector<int> UsedVariables(const CpModelProto& model_proto) const final;
 
  protected:
   // Computes the violation of a constraint when it is enforced.
@@ -340,6 +306,9 @@ class CompiledConstraintWithProto : public CompiledConstraint {
   virtual int64_t ViolationDeltaWhenEnforced(
       int var, int64_t old_value,
       absl::Span<const int64_t> solution_with_new_value);
+
+ private:
+  const ConstraintProto& ct_proto_;
 };
 
 // Evaluation container for the local search.
@@ -361,8 +330,9 @@ class LsEvaluator {
               TimeLimit* time_limit);
 
   // Intersects the domain of the objective with [lb..ub].
-  // It returns true if a reduction of the domain took place.
-  bool ReduceObjectiveBounds(int64_t lb, int64_t ub);
+  // Sets reduced to true if a reduction of the domain took place.
+  // Returns false if the objective domain becomes empty.
+  bool ReduceObjectiveBounds(int64_t lb, int64_t ub, bool& reduced);
 
   // Recomputes the violations of all constraints (resp only non-linear one).
   void ComputeAllViolations(absl::Span<const int64_t> solution);
@@ -470,15 +440,6 @@ class LsEvaluator {
     return constraint_to_vars_[general_c];
   }
 
-  // Remaps the variables to their representative or to a fixed value. If
-  // variable_mapping[i] is equal to kNoVariableMapping then the variable is
-  // fixed to fixed_values[i]. Otherwise, variable i is remapped to
-  // variable_mapping[i], which must be a positive ref (unless i is a Boolean
-  // variable, in which case both positive and negative references are allowed).
-  // Returns true if a constraint might have been modified.
-  bool RemapVariables(absl::Span<const int> variable_mapping,
-                      absl::Span<const int64_t> fixed_values);
-
   // TODO(user): Properly account all big time consumers.
   double DeterministicTime() const {
     return linear_evaluator_.DeterministicTime() + dtime_;
@@ -495,6 +456,7 @@ class LsEvaluator {
 
   const CpModelProto& cp_model_;
   const SatParameters& params_;
+  CpModelProto expanded_constraints_;
   LinearIncrementalEvaluator linear_evaluator_;
   std::vector<std::unique_ptr<CompiledConstraint>> constraints_;
   std::vector<std::vector<int>> var_to_constraints_;
@@ -516,77 +478,6 @@ class LsEvaluator {
 // Individual compiled constraints.
 // ================================
 
-// A "sum(var * coeff) + offset" expression.
-template <int N>
-struct CompiledExpression {
-  CompiledExpression() = default;
-  explicit CompiledExpression(int64_t offset) : offset(offset) {}
-  explicit CompiledExpression(const LinearExpressionProto& proto) {
-    if (!proto.vars().empty()) {
-      DCHECK_LE(proto.vars().size(), N);
-      for (int i = 0; i < N; ++i) {
-        if (i >= proto.vars().size()) break;
-        vars[i] = proto.vars(i);
-        coeffs[i] = proto.coeffs(i);
-      }
-    }
-    offset = proto.offset();
-  }
-
-  int64_t GetValue(absl::Span<const int64_t> solution) const {
-    int64_t value = offset;
-    for (int i = 0; i < N; ++i) {
-      value += coeffs[i] * solution[vars[i]];
-    }
-    return value;
-  }
-
-  void AppendVarsTo(std::vector<int>& result) const {
-    for (int i = 0; i < N; ++i) {
-      if (coeffs[i] != 0) result.push_back(vars[i]);
-    }
-  }
-
-  CompiledExpression<N> Negated() const {
-    CompiledExpression<N> result;
-    for (int i = 0; i < N; ++i) {
-      result.vars[i] = vars[i];
-      result.coeffs[i] = -coeffs[i];
-    }
-    result.offset = -offset;
-    return result;
-  }
-
-  // See CompiledConstraint::RemapVariables().
-  bool RemapVariables(absl::Span<const int> variable_mapping,
-                      absl::Span<const int64_t> fixed_values) {
-    // In practice N <= 2 so we don't bother merging terms with the same var.
-    bool changed = false;
-    for (int i = 0; i < N; ++i) {
-      if (coeffs[i] == 0) continue;
-      const int mapped_ref = variable_mapping[vars[i]];
-      changed |= (mapped_ref != vars[i]);
-      if (mapped_ref == kNoVariableMapping) {
-        offset += coeffs[i] * fixed_values[vars[i]];
-        coeffs[i] = 0;
-        vars[i] = 0;
-      } else if (RefIsPositive(mapped_ref)) {
-        vars[i] = mapped_ref;
-      } else {
-        // Only Boolean variables can have a negative mapped reference.
-        offset += coeffs[i];
-        coeffs[i] = -coeffs[i];
-        vars[i] = NegatedRef(mapped_ref);
-      }
-    }
-    return changed;
-  }
-
-  std::array<int, N> vars = {};
-  std::array<int64_t, N> coeffs = {};
-  int64_t offset = 0;
-};
-
 // The violation of a bool_xor constraint is 0 or 1.
 class CompiledBoolXorConstraint : public CompiledConstraintWithProto {
  public:
@@ -598,15 +489,6 @@ class CompiledBoolXorConstraint : public CompiledConstraintWithProto {
   int64_t ViolationDeltaWhenEnforced(
       int var, int64_t old_value,
       absl::Span<const int64_t> solution_with_new_value) override;
-
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
- private:
-  std::vector<int> literals_;
-  int sum_of_fixed_literals_ = 0;
 };
 
 // The violation of a lin_max constraint is:
@@ -620,15 +502,6 @@ class CompiledLinMaxConstraint : public CompiledConstraintWithProto {
 
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
-
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
- private:
-  CompiledExpression<1> target_;
-  std::vector<CompiledExpression<1>> exprs_;
 };
 
 // The violation of an int_prod constraint is
@@ -640,15 +513,6 @@ class CompiledIntProdConstraint : public CompiledConstraintWithProto {
 
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
-
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
- private:
-  CompiledExpression<1> target_;
-  std::vector<CompiledExpression<1>> exprs_;
 };
 
 // The violation of an int_div constraint is
@@ -660,16 +524,6 @@ class CompiledIntDivConstraint : public CompiledConstraintWithProto {
 
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
-
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
- private:
-  CompiledExpression<1> target_;
-  CompiledExpression<1> expr1_;
-  CompiledExpression<1> expr2_;
 };
 
 // The violation of an int_mod constraint is defined as follow:
@@ -691,16 +545,6 @@ class CompiledIntModConstraint : public CompiledConstraintWithProto {
 
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
-
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
- private:
-  CompiledExpression<1> target_;
-  CompiledExpression<1> expr_;
-  CompiledExpression<1> mod_;
 };
 
 // The violation of a all_diff is the number of unordered pairs of expressions
@@ -713,14 +557,30 @@ class CompiledAllDiffConstraint : public CompiledConstraintWithProto {
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
 
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
  private:
-  std::vector<CompiledExpression<1>> exprs_;
   std::vector<int64_t> values_;
+};
+
+// This is more compact and faster to destroy than storing a
+// LinearExpressionProto.
+struct ViewOfAffineLinearExpressionProto {
+  explicit ViewOfAffineLinearExpressionProto(
+      const LinearExpressionProto& proto) {
+    if (!proto.vars().empty()) {
+      DCHECK_EQ(proto.vars().size(), 1);
+      var = proto.vars(0);
+      coeff = proto.coeffs(0);
+    }
+    offset = proto.offset();
+  }
+
+  void AppendVarTo(std::vector<int>& result) const {
+    if (coeff != 0) result.push_back(var);
+  }
+
+  int var = 0;
+  int64_t coeff = 0;
+  int64_t offset = 0;
 };
 
 // Special constraint for no overlap between two intervals.
@@ -732,24 +592,24 @@ class CompiledNoOverlapWithTwoIntervals : public CompiledConstraint {
   struct Interval {
     explicit Interval(const ConstraintProto& x)
         : start(x.interval().start()), end(x.interval().end()) {}
-    CompiledExpression<1> start;
-    CompiledExpression<1> end;
+    ViewOfAffineLinearExpressionProto start;
+    ViewOfAffineLinearExpressionProto end;
   };
 
   CompiledNoOverlapWithTwoIntervals(absl::Span<const int> enforcement_literals,
                                     const ConstraintProto& x1,
                                     const ConstraintProto& x2)
-      : CompiledConstraint(enforcement_literals),
-        interval1_(x1),
-        interval2_(x2) {
+      : interval1_(x1), interval2_(x2) {
     if (has_enforcement) {
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   x1.enforcement_literal().begin(),
-                                   x1.enforcement_literal().end());
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   x2.enforcement_literal().begin(),
-                                   x2.enforcement_literal().end());
-      gtl::STLSortAndRemoveDuplicates(&enforcement_literals_);
+      enforcements_.assign(enforcement_literals.begin(),
+                           enforcement_literals.end());
+      enforcements_.insert(enforcements_.end(),
+                           x1.enforcement_literal().begin(),
+                           x1.enforcement_literal().end());
+      enforcements_.insert(enforcements_.end(),
+                           x2.enforcement_literal().begin(),
+                           x2.enforcement_literal().end());
+      gtl::STLSortAndRemoveDuplicates(&enforcements_);
     }
   }
 
@@ -768,14 +628,12 @@ class CompiledNoOverlapWithTwoIntervals : public CompiledConstraint {
       int /*var*/, int64_t /*old_value*/,
       absl::Span<const int64_t> solution_with_new_value) final;
 
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
+  std::vector<int> UsedVariables(const CpModelProto& model_proto) const final;
 
  private:
-  Interval interval1_;
-  Interval interval2_;
+  std::vector<int> enforcements_;
+  const Interval interval1_;
+  const Interval interval2_;
 };
 
 class CompiledNoOverlap2dConstraint : public CompiledConstraintWithProto {
@@ -787,15 +645,7 @@ class CompiledNoOverlap2dConstraint : public CompiledConstraintWithProto {
   int64_t ComputeViolationWhenEnforced(
       absl::Span<const int64_t> solution) override;
 
-  std::vector<int> UsedVariables() const override;
-
-  // Does nothing (remapping is not supported by this type of constraint).
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
-
  private:
-  const ConstraintProto& ct_proto_;
   const CpModelProto& cp_model_;
 };
 
@@ -808,10 +658,10 @@ class CompiledNoOverlap2dWithTwoBoxes : public CompiledConstraint {
           x_max(x.interval().end()),
           y_min(y.interval().start()),
           y_max(y.interval().end()) {}
-    CompiledExpression<1> x_min;
-    CompiledExpression<1> x_max;
-    CompiledExpression<1> y_min;
-    CompiledExpression<1> y_max;
+    ViewOfAffineLinearExpressionProto x_min;
+    ViewOfAffineLinearExpressionProto x_max;
+    ViewOfAffineLinearExpressionProto y_min;
+    ViewOfAffineLinearExpressionProto y_max;
   };
 
   CompiledNoOverlap2dWithTwoBoxes(absl::Span<const int> enforcement_literals,
@@ -819,23 +669,23 @@ class CompiledNoOverlap2dWithTwoBoxes : public CompiledConstraint {
                                   const ConstraintProto& y1,
                                   const ConstraintProto& x2,
                                   const ConstraintProto& y2)
-      : CompiledConstraint(enforcement_literals), box1_(x1, y1), box2_(x2, y2) {
+      : box1_(x1, y1), box2_(x2, y2) {
     if (has_enforcement) {
-      enforcement_literals_.assign(enforcement_literals.begin(),
-                                   enforcement_literals.end());
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   x1.enforcement_literal().begin(),
-                                   x1.enforcement_literal().end());
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   y1.enforcement_literal().begin(),
-                                   y1.enforcement_literal().end());
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   x2.enforcement_literal().begin(),
-                                   x2.enforcement_literal().end());
-      enforcement_literals_.insert(enforcement_literals_.end(),
-                                   y2.enforcement_literal().begin(),
-                                   y2.enforcement_literal().end());
-      gtl::STLSortAndRemoveDuplicates(&enforcement_literals_);
+      enforcements_.assign(enforcement_literals.begin(),
+                           enforcement_literals.end());
+      enforcements_.insert(enforcements_.end(),
+                           x1.enforcement_literal().begin(),
+                           x1.enforcement_literal().end());
+      enforcements_.insert(enforcements_.end(),
+                           y1.enforcement_literal().begin(),
+                           y1.enforcement_literal().end());
+      enforcements_.insert(enforcements_.end(),
+                           x2.enforcement_literal().begin(),
+                           x2.enforcement_literal().end());
+      enforcements_.insert(enforcements_.end(),
+                           y2.enforcement_literal().begin(),
+                           y2.enforcement_literal().end());
+      gtl::STLSortAndRemoveDuplicates(&enforcements_);
     }
   }
 
@@ -856,14 +706,12 @@ class CompiledNoOverlap2dWithTwoBoxes : public CompiledConstraint {
       int /*var*/, int64_t /*old_value*/,
       absl::Span<const int64_t> solution_with_new_value) final;
 
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
+  std::vector<int> UsedVariables(const CpModelProto& model_proto) const final;
 
  private:
-  Box box1_;
-  Box box2_;
+  std::vector<int> enforcements_;
+  const Box box1_;
+  const Box box2_;
 };
 
 // This can be used to encode reservoir or a cumulative constraints for LS. We
@@ -876,12 +724,12 @@ class CompiledNoOverlap2dWithTwoBoxes : public CompiledConstraint {
 // ViolationDelta().
 class CompiledReservoirConstraint : public CompiledConstraint {
  public:
-  CompiledReservoirConstraint(absl::Span<const int> enforcement_literals,
-                              CompiledExpression<1> capacity,
+  CompiledReservoirConstraint(std::vector<int> enforcement_literals,
+                              LinearExpressionProto capacity,
                               std::vector<std::optional<int>> is_active,
-                              std::vector<CompiledExpression<2>> times,
-                              std::vector<CompiledExpression<1>> demands)
-      : CompiledConstraint(enforcement_literals),
+                              std::vector<LinearExpressionProto> times,
+                              std::vector<LinearExpressionProto> demands)
+      : enforcement_literals_(std::move(enforcement_literals)),
         capacity_(std::move(capacity)),
         is_active_(std::move(is_active)),
         times_(std::move(times)),
@@ -908,10 +756,7 @@ class CompiledReservoirConstraint : public CompiledConstraint {
     return IncrementalViolation(var, solution_with_new_value) - violation_;
   }
 
-  std::vector<int> UsedVariables() const override;
-  bool RemapVariablesIfSupported(
-      absl::Span<const int> variable_mapping,
-      absl::Span<const int64_t> fixed_values) override;
+  std::vector<int> UsedVariables(const CpModelProto& model_proto) const final;
 
  private:
   // This works in O(n log n).
@@ -925,12 +770,13 @@ class CompiledReservoirConstraint : public CompiledConstraint {
   void InitializeDenseIndexToEvents();
   void AppendVariablesForEvent(int i, std::vector<int>* result) const;
 
-  // The data from the constructor.
+  // The const data from the constructor.
   // Note that is_active_ might be empty if all events are mandatory.
-  CompiledExpression<1> capacity_;
-  std::vector<std::optional<int>> is_active_;
-  std::vector<CompiledExpression<2>> times_;
-  std::vector<CompiledExpression<1>> demands_;
+  const std::vector<int> enforcement_literals_;
+  const LinearExpressionProto capacity_;
+  const std::vector<std::optional<int>> is_active_;
+  const std::vector<LinearExpressionProto> times_;
+  const std::vector<LinearExpressionProto> demands_;
 
   // Remap all UsedVariables() to a dense index in [0, num_used_vars).
   absl::flat_hash_map<int, int> var_to_dense_index_;
