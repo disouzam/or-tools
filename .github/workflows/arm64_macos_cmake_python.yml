@@ -26,12 +26,11 @@ jobs:
           {name: "Make", generator: "Unix Makefiles", config: Release, build_target: all, test_target: test, install_target: install},
         ]
         python: [
-          #{version: "3.9"},
-          #{version: "3.10"},
+          {version: "3.10"},
           #{version: "3.11"},
-          {version: "3.12"},
-          #{version: "3.13"},
-          #{version: "3.14"},
+          #{version: "3.12"},
+          {version: "3.13"},
+          {version: "3.14"},
         ]
       fail-fast: false
     name: arm64•MacOS•CMake(${{matrix.cmake.name}})•Python-${{matrix.python.version}}
