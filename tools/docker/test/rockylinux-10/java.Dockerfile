@@ -11,7 +11,7 @@ RUN dnf -y update \
 && rm -rf /var/cache/dnf
 #CMD ["/usr/bin/bash"]
 
-# Install Java 8 SDK
+# Install Java 21 SDK
 RUN dnf -y update \
 && dnf -y install java-21-openjdk java-21-openjdk-devel maven \
 && dnf clean all \

@@ -4,7 +4,7 @@ RUN dnf -y update \
 && dnf -y install java-21-openjdk java-21-openjdk-devel maven \
 && dnf clean all \
 && rm -rf /var/cache/dnf
-RUN alternatives --set java /usr/lib/jvm/java-21-openjdk-21.*.x86_64/bin/java
+RUN alternatives --set java /usr/lib/jvm/java-21-openjdk/bin/java
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
 
 FROM env AS devel
