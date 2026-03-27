@@ -1,5 +1,5 @@
 # ref: https://hub.docker.com/_/almalinux
-FROM almalinux:9
+FROM almalinux:10
 
 #############
 ##  SETUP  ##
@@ -13,6 +13,6 @@ RUN dnf -y update \
 #CMD ["/usr/bin/bash"]
 
 WORKDIR /root
-ADD or-tools_amd64_almalinux-9_cpp_v*.tar.gz .
+ADD or-tools_amd64_almalinux-10_cpp_v*.tar.gz .
 
 RUN cd or-tools_*_v* && make test

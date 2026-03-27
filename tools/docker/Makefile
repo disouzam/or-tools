@@ -89,7 +89,7 @@ help:
 #	@echo -e "\t\t${BOLD}riscv64 (RISC-V 64bits, experimental)${RESET}"
 	@echo
 	@echo -e "\t${BOLD}<distro>${RESET}:"
-	@echo -e "\t\t${BOLD}almalinux-9${RESET} (latest)"
+	@echo -e "\t\t${BOLD}almalinux-10${RESET} (latest)"
 	@echo -e "\t\t${BOLD}alpine-edge${RESET} (latest)"
 	@echo -e "\t\t${BOLD}archlinux${RESET} (latest)"
 	@echo -e "\t\t${BOLD}debian-sid${RESET} (unstable)"
@@ -126,8 +126,8 @@ help:
 	@echo -e "\te.g. 'make amd64_ubuntu-22.04_cpp_test'"
 	@echo
 	@echo -e "\tnote: Few custom merge targets (e.g. ${BOLD}export${RESET}) are also provided."
-	@echo -e "\te.g. 'make amd64_almalinux-9_export'"
-	@echo -e "\te.g. 'make arm64_almalinux-9_export'"
+	@echo -e "\te.g. 'make amd64_almalinux-10_export'"
+	@echo -e "\te.g. 'make arm64_almalinux-10_export'"
 	@echo
 	@echo -e "\t${BOLD}NOCACHE=1${RESET}: use 'docker build --no-cache' when building container (default use cache)."
 	@echo -e "\t${BOLD}VERBOSE=1${RESET}: use 'docker build --progress=plain' when building container."
@@ -428,7 +428,7 @@ PLATFORMS := amd64 arm64 # riscv64
 
 # Currently supported distro
 DISTROS := \
- almalinux-9 \
+ almalinux-10 \
  alpine-edge \
  archlinux \
  debian-11 debian-12 debian-sid \

@@ -1,5 +1,5 @@
 # ref: https://hub.docker.com/_/almalinux
-FROM almalinux:9
+FROM almalinux:10
 
 #############
 ##  SETUP  ##
@@ -20,6 +20,6 @@ RUN dnf -y update \
 RUN dotnet --info
 
 WORKDIR /root
-ADD or-tools_amd64_almalinux-9_dotnet_v*.tar.gz .
+ADD or-tools_amd64_almalinux-10_dotnet_v*.tar.gz .
 
 RUN cd or-tools_*_v* && make test

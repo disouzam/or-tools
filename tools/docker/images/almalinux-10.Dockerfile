@@ -1,5 +1,5 @@
 # ref: https://hub.docker.com/_/almalinux
-FROM almalinux:9 AS env
+FROM almalinux:10 AS env
 
 #############
 ##  SETUP  ##
@@ -36,7 +36,7 @@ RUN wget -q "https://dot.net/v1/dotnet-install.sh" \
 # Trigger first run experience by running arbitrary cmd
 RUN dotnet --info
 
-# Install Java 8 SDK
+# Install Java 21 SDK
 RUN dnf -y update \
 && dnf -y install java-21-openjdk java-21-openjdk-devel maven \
 && dnf clean all \
@@ -54,7 +54,7 @@ RUN python3 -m pip install \
 ##  OR-TOOLS  ##
 ################
 FROM env AS devel
-ENV DISTRIBUTION=almalinux-9
+ENV DISTRIBUTION=almalinux-10
 
 WORKDIR /root
 # Copy the snk key
