@@ -14,10 +14,8 @@
 
 """Simple prize collecting TSP problem with a max distance."""
 
-from ortools.routing import enums_pb2
-from ortools.routing import parameters_pb2
+from ortools.routing import enums_pb2, parameters_pb2
 from ortools.routing.python import routing
-
 
 DISTANCE_MATRIX = [
     # fmt:off

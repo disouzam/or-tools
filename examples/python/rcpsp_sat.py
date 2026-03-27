@@ -23,8 +23,7 @@ Data use in flags:
 
 import collections
 
-from absl import app
-from absl import flags
+from absl import app, flags
 
 from ortools.sat.python import cp_model
 from ortools.scheduling import rcpsp_pb2
