@@ -177,6 +177,10 @@ cc_library(
         ":use_xpress": ["xpress_interface.cc"],
         "//conditions:default": [],
     }),
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         ":linear_solver_base",
         ":linear_solver_cc_proto",
@@ -355,6 +359,10 @@ cc_library(
 cc_library(
     name = "linear_solver_gurobi",
     srcs = ["gurobi_interface.cc"],
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         ":gurobi_util",
         ":linear_solver_base",
@@ -382,6 +390,10 @@ cc_library(
     name = "gurobi_util",
     srcs = ["gurobi_util.cc"],
     hdrs = ["gurobi_util.h"],
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/base:status_macros",
         "//ortools/third_party_solvers:gurobi_environment",
@@ -554,6 +566,10 @@ cc_library(
 cc_binary(
     name = "solve",
     srcs = ["solve.cc"],
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         ":linear_solver",
         ":linear_solver_cc_proto",

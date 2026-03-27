@@ -21,6 +21,10 @@ py_binary(
     name = "arc_flow_cutting_stock_sat_py3",
     srcs = ["arc_flow_cutting_stock_sat.py"],
     main = "arc_flow_cutting_stock_sat.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         requirement("absl-py"),
         requirement("numpy"),

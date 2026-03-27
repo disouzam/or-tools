@@ -178,6 +178,10 @@ py_test(
     name = "assignment_mb_py3",
     srcs = ["assignment_mb.py"],
     main = "assignment_mb.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         requirement("pandas"),
         "//ortools/linear_solver/python:model_builder",
@@ -188,6 +192,10 @@ py_test(
     name = "bin_packing_mb_py3",
     srcs = ["bin_packing_mb.py"],
     main = "bin_packing_mb.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         requirement("pandas"),
         "//ortools/linear_solver/python:model_builder",
@@ -198,6 +206,10 @@ py_test(
     name = "clone_model_mb_py3",
     srcs = ["clone_model_mb.py"],
     main = "clone_model_mb.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = ["//ortools/linear_solver/python:model_builder"],
 )
 
@@ -205,6 +217,10 @@ py_test(
     name = "simple_lp_program_mb_py3",
     srcs = ["simple_lp_program_mb.py"],
     main = "simple_lp_program_mb.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = ["//ortools/linear_solver/python:model_builder"],
 )
 
@@ -212,6 +228,10 @@ py_test(
     name = "simple_mip_program_mb_py3",
     srcs = ["simple_mip_program_mb.py"],
     main = "simple_mip_program_mb.py",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = ["//ortools/linear_solver/python:model_builder"],
 )
 
@@ -219,6 +239,10 @@ java_binary(
     name = "AssignmentMb",
     srcs = ["AssignmentMb.java"],
     main_class = "com.google.ortools.linearsolver.samples.AssignmentMb",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/java/com/google/ortools:Loader",
         "//ortools/java/com/google/ortools/modelbuilder",
@@ -230,12 +254,20 @@ bintest(
     name = "AssignmentMbTest",
     srcs = [":AssignmentMbTest.bintest"],
     named_data = {"AssignmentMb": ":AssignmentMb"},
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
 )
 
 java_binary(
     name = "BinPackingMb",
     srcs = ["BinPackingMb.java"],
     main_class = "com.google.ortools.linearsolver.samples.BinPackingMb",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/java/com/google/ortools:Loader",
         "//ortools/java/com/google/ortools/modelbuilder",
@@ -247,12 +279,20 @@ bintest(
     name = "BinPackingMbTest",
     srcs = [":BinPackingMbTest.bintest"],
     named_data = {"BinPackingMb": ":BinPackingMb"},
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
 )
 
 java_binary(
     name = "CloneModelMb",
     srcs = ["CloneModelMb.java"],
     main_class = "com.google.ortools.linearsolver.samples.CloneModelMb",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/java/com/google/ortools:Loader",
         "//ortools/java/com/google/ortools/modelbuilder",
@@ -264,12 +304,20 @@ bintest(
     name = "CloneModelMbTest",
     srcs = [":CloneModelMbTest.bintest"],
     named_data = {"CloneModelMb": ":CloneModelMb"},
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
 )
 
 java_binary(
     name = "SimpleLpProgramMb",
     srcs = ["SimpleLpProgramMb.java"],
     main_class = "com.google.ortools.linearsolver.samples.SimpleLpProgramMb",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/java/com/google/ortools:Loader",
         "//ortools/java/com/google/ortools/modelbuilder",
@@ -281,12 +329,20 @@ bintest(
     name = "SimpleLpProgramMbTest",
     srcs = [":SimpleLpProgramMbTest.bintest"],
     named_data = {"SimpleLpProgramMb": ":SimpleLpProgramMb"},
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
 )
 
 java_binary(
     name = "SimpleMipProgramMb",
     srcs = ["SimpleMipProgramMb.java"],
     main_class = "com.google.ortools.linearsolver.samples.SimpleMipProgramMb",
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
     deps = [
         "//ortools/java/com/google/ortools:Loader",
         "//ortools/java/com/google/ortools/modelbuilder",
@@ -298,4 +354,8 @@ bintest(
     name = "SimpleMipProgramMbTest",
     srcs = [":SimpleMipProgramMbTest.bintest"],
     named_data = {"SimpleMipProgramMb": ":SimpleMipProgramMb"},
+    tags = [
+        "not_build:arm",
+        "not_run:arm",
+    ],
 )
