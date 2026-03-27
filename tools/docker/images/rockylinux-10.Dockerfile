@@ -1,5 +1,5 @@
 # ref: https://hub.docker.com/rockylinux/rockylinux
-FROM rockylinux/rockylinux:9 AS env
+FROM rockylinux/rockylinux:10 AS env
 
 #############
 ##  SETUP  ##
@@ -54,7 +54,7 @@ RUN python3 -m pip install \
 ##  OR-TOOLS  ##
 ################
 FROM env AS devel
-ENV DISTRIBUTION=rockylinux-9
+ENV DISTRIBUTION=rockylinux-10
 
 WORKDIR /root
 # Copy the snk key

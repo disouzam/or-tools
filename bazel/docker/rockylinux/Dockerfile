@@ -1,17 +1,14 @@
 # Create a virtual environment with all tools installed
 # ref: https://hub.docker.com/rockylinux/rockylinux
-FROM rockylinux/rockylinux:9 AS env
+FROM rockylinux/rockylinux:10 AS env
 
 # Install system build dependencies
 ENV PATH=/usr/local/bin:$PATH
 RUN dnf -y update \
-&& dnf -y install git wget zlib-devel gcc-toolset-13 \
+&& dnf -y install git wget zlib-devel \
 && dnf -y group install "Development Tools" \
 && dnf clean all \
 && rm -rf /var/cache/dnf
-
-RUN echo "source /opt/rh/gcc-toolset-13/enable" >> /etc/bashrc
-SHELL ["/bin/bash", "--login", "-c"]
 
 # Install Bazelisk
 ARG TARGETARCH=amd64

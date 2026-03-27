@@ -1,5 +1,5 @@
 # ref: https://hub.docker.com/rockylinux/rockylinux
-FROM rockylinux/rockylinux:9
+FROM rockylinux/rockylinux:10
 
 #############
 ##  SETUP  ##
@@ -13,6 +13,6 @@ RUN dnf -y update \
 #CMD ["/usr/bin/bash"]
 
 WORKDIR /root
-ADD or-tools_amd64_rockylinux-9_cpp_v*.tar.gz .
+ADD or-tools_amd64_rockylinux-10_cpp_v*.tar.gz .
 
 RUN cd or-tools_*_v* && make test
