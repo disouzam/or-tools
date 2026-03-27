@@ -33,7 +33,7 @@ RUN wget -q "https://dot.net/v1/dotnet-install.sh" \
 #RUN g++ --version
 RUN dotnet --info
 
-# Install Java 8 SDK
+# Install Java 21 SDK
 RUN dnf -y update \
 && dnf -y install java-21-openjdk java-21-openjdk-devel maven \
 && dnf clean all \
