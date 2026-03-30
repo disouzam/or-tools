@@ -28,7 +28,7 @@ println()
 println("Downloading and installing a precompiled version of OR-Tools...")
 println("BASE_URL: $BASE_URL, ORTOOLS_MINOR_VERSION: " *
         "$ORTOOLS_MINOR_VERSION, ORTOOLS_PATCH_VERSION: " *
-		"$ORTOOLS_PATCH_VERSION")
+        "$ORTOOLS_PATCH_VERSION")
 
 key = "unknown"
 if Sys.islinux()
@@ -62,8 +62,8 @@ println("Sys.islinux: $(Sys.islinux()), Sys.isapple: $(Sys.isapple()), " *
 println("Detected platform: $key")
 if !(key in keys(TARGET_PACKAGES))
     error("No package found for $key. Known packages: " *
-	      "$(keys(TARGET_PACKAGES)). Maybe ORTools_jll contains a package " *
-		  "for your platform.")
+          "$(keys(TARGET_PACKAGES)). Maybe ORTools_jll contains a package " *
+          "for your platform.")
 end
 
 println("Downloading the following binary package:")
@@ -88,16 +88,16 @@ if endswith(TARGET_PACKAGES[key], ".zip")
     # as the archive itself. We only need the DLLs in the `bin` folder.
     zr = ZipArchives.ZipReader(read(package))
     for name in ZipArchives.zip_names(zr)
-		should_extract = (
-			startswith(name, PACKAGE_FILE_NAME_WITHOUT_EXTENSION[key]) &&
-			endswith(name, ".dll")
-		)
+        should_extract = (
+            startswith(name, PACKAGE_FILE_NAME_WITHOUT_EXTENSION[key]) &&
+            endswith(name, ".dll")
+        )
         if should_extract
             filename = basename(name)
-			dest_path = joinpath(dest_dir, filename)
+            dest_path = joinpath(dest_dir, filename)
             println("Extracting: $filename (path in the ZIP archive: $name; " *
-			        "destination path: $dest_path)")
-            
+                    "destination path: $dest_path)")
+
             ZipArchives.zip_openentry(zr, name) do io
                 open(dest_path, "w") do f
                     write(f, io)
@@ -134,14 +134,14 @@ elseif endswith(TARGET_PACKAGES[key], ".tar.gz")
     end
 
     # Clean up after flattening.
-	tmp_dir_extraction = joinpath(
-		dest_dir, PACKAGE_FILE_NAME_WITHOUT_EXTENSION[key])
-	if !isdir(tmp_dir_extraction)
-		tmp_dir_extraction = replace(
-				tmp_dir_extraction, "amd64" => "x86_64")
-	end
-	println("Cleaning up temporary folder: $tmp_dir_extraction")
-	rm(tmp_dir_extraction, recursive=true)
+    tmp_dir_extraction = joinpath(
+            dest_dir, PACKAGE_FILE_NAME_WITHOUT_EXTENSION[key])
+    if !isdir(tmp_dir_extraction)
+        tmp_dir_extraction = replace(
+            tmp_dir_extraction, "amd64" => "x86_64")
+    end
+    println("Cleaning up temporary folder: $tmp_dir_extraction")
+    rm(tmp_dir_extraction, recursive=true)
 else
     error("Assertion failed: archive type not supported. Please report the problem to the maintainers of OR-Tools.")
 end
