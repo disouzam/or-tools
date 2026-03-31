@@ -11,13 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set_property(SOURCE sat.swig PROPERTY CPLUSPLUS ON)
-set_property(SOURCE sat.swig PROPERTY SWIG_MODULE_NAME main)
-set_property(SOURCE sat.swig PROPERTY COMPILE_DEFINITIONS
-  ${OR_TOOLS_COMPILE_DEFINITIONS})
-set_property(SOURCE sat.swig PROPERTY COMPILE_OPTIONS
-  -package ${JAVA_PACKAGE}.sat)
-
 # SWIG generator
 add_executable(gen_cp_model_proto_swig gen_cp_model_proto_swig.cc)
 target_link_libraries(gen_cp_model_proto_swig PRIVATE
@@ -81,6 +74,13 @@ set_target_properties(jni_cp_model_proto PROPERTIES
 target_link_libraries(jni_cp_model_proto PRIVATE ortools::ortools)
 
 # sat
+set_property(SOURCE sat.swig PROPERTY CPLUSPLUS ON)
+set_property(SOURCE sat.swig PROPERTY SWIG_MODULE_NAME main)
+set_property(SOURCE sat.swig PROPERTY COMPILE_DEFINITIONS
+  ${OR_TOOLS_COMPILE_DEFINITIONS})
+set_property(SOURCE sat.swig PROPERTY COMPILE_OPTIONS
+  -package ${JAVA_PACKAGE}.sat)
+
 set(SWIG_MODULE_jnisat_EXTRA_DEPS java_cp_model_proto)
 swig_add_library(jnisat
   TYPE OBJECT
