@@ -293,6 +293,7 @@ struct CpModelProtoWithMapping {
   // Methods to handle constraints on set variables.
   void ArraySetElementConstraint(const fz::Constraint& fz_ct);
   void ArrayVarSetElementConstraint(const fz::Constraint& fz_ct);
+  void OrToolsArrayVarSetElementConstraint(const fz::Constraint& fz_ct);
   void FznAllDifferentSetConstraint(const fz::Constraint& fz_ct);
   void FznAllDisjointConstraint(const fz::Constraint& fz_ct);
   void FznDisjointConstraint(const fz::Constraint& fz_ct);
@@ -513,10 +514,27 @@ std::shared_ptr<SetVariable> CpModelProtoWithMapping::LookupSetVarAt(
   if (argument.type == fz::Argument::VAR_REF_ARRAY) {
     CHECK(argument.variables[pos]->domain.is_a_set);
     return set_variables[argument.variables[pos]];
+  } else if (argument.type == fz::Argument::DOMAIN_LIST) {
+    std::shared_ptr<SetVariable> result = std::make_shared<SetVariable>();
+    const int true_literal = LookupConstant(1);
+    const fz::Domain domain = argument.domains[pos];
+    if (domain.is_interval) {
+      for (int64_t value = domain.values[0]; value <= domain.values[1]; ++value) {
+        result->sorted_values.push_back(value);
+        result->var_indices.push_back(true_literal);
+      }
+    } else {
+      for (const int64_t value : domain.values) {
+        result->sorted_values.push_back(value);
+        result->var_indices.push_back(true_literal);
+      }
+    }
+    return result;
   } else {
     LOG(FATAL) << "LookupSetVarAt:Unsupported argument type '" << argument.type
                << "'";
   }
+  return std::make_shared<SetVariable>();
 }
 
 ConstraintProto* CpModelProtoWithMapping::AddEnforcedConstraint(int literal) {
@@ -2759,6 +2777,55 @@ void CpModelProtoWithMapping::ArrayVarSetElementConstraint(
   }
 }
 
+void CpModelProtoWithMapping::OrToolsArrayVarSetElementConstraint(
+    const fz::Constraint& fz_ct) {
+  const int index = LookupVar(fz_ct.arguments[0]);
+  std::shared_ptr<SetVariable> array_index_set =
+      LookupSetVar(fz_ct.arguments[1]);
+  const int64_t min_index = array_index_set->sorted_values.front();
+  const std::shared_ptr<SetVariable> target_var =
+      LookupSetVar(fz_ct.arguments[3]);
+  absl::btree_map<int64_t, int> target_values_to_literals;
+  for (int i = 0; i < target_var->sorted_values.size(); ++i) {
+    target_values_to_literals[target_var->sorted_values[i]] =
+        target_var->var_indices[i];
+  }
+
+  BoolArgumentProto* exactly_one =
+      proto.add_constraints()->mutable_exactly_one();
+  for (const int64_t value : array_index_set->sorted_values) {
+    const int index_literal = GetOrCreateEncodingLiteral(index, value);
+    exactly_one->add_literals(index_literal);
+
+    std::shared_ptr<SetVariable> set_var =
+        LookupSetVarAt(fz_ct.arguments[2], value - min_index);
+    absl::btree_map<int64_t, int> set_values_to_literals;
+    for (int i = 0; i < set_var->sorted_values.size(); ++i) {
+      set_values_to_literals[set_var->sorted_values[i]] =
+          set_var->var_indices[i];
+    }
+
+    for (const auto& [value, set_literal] : set_values_to_literals) {
+      const auto it = target_values_to_literals.find(value);
+      if (it == target_values_to_literals.end()) {
+        // index is selected => set_literal[value] is false.
+        AddImplication({index_literal}, NegatedRef(set_literal));
+      } else {
+        // index is selected => set_literal[value] == target_literal[value].
+        AddImplication({index_literal, set_literal}, it->second);
+        AddImplication({index_literal, it->second}, set_literal);
+      }
+    }
+
+    // Properly handle the case where not all target literals are reached.
+    for (const auto& [value, target_literal] : target_values_to_literals) {
+      if (!set_values_to_literals.contains(value)) {
+        AddImplication({index_literal}, NegatedRef(target_literal));
+      }
+    }
+  }
+}
+
 void CpModelProtoWithMapping::FznAllDifferentSetConstraint(
     const fz::Constraint& fz_ct) {
   const int num_vars = fz_ct.arguments[0].Size();
@@ -3177,6 +3244,8 @@ const ConstraintToSetMethodMapType& GetSetConstraintMap() {
   static const absl::NoDestructor<ConstraintToSetMethodMapType> kConstraintMap({
       {"array_set_element", &MPMap::ArraySetElementConstraint},
       {"array_var_set_element", &MPMap::ArrayVarSetElementConstraint},
+      {"ortools_array_var_set_element",
+       &MPMap::OrToolsArrayVarSetElementConstraint},
       {"fzn_all_different_set", &MPMap::FznAllDifferentSetConstraint},
       {"fzn_all_disjoint", &MPMap::FznAllDisjointConstraint},
       {"fzn_disjoint", &MPMap::FznDisjointConstraint},

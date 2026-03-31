@@ -326,6 +326,17 @@ bool CheckOrToolsArrayIntElement(
   return element == target;
 }
 
+bool CheckOrToolsArraySetElement(
+    const Constraint& ct, const std::function<int64_t(Variable*)>& evaluator,
+    const std::function<std::vector<int64_t>(Variable*)>& set_evaluator) {
+  const int64_t index = Eval(ct.arguments[0], evaluator);
+  const int64_t min_index = ct.arguments[1].values[0];
+  const std::vector<int64_t> element =
+      SetEvalAt(ct.arguments[2], index - min_index, set_evaluator);
+  const std::vector<int64_t> target = SetEval(ct.arguments[3], set_evaluator);
+  return element == target;
+}
+
 bool CheckAtMostInt(
     const Constraint& ct, const std::function<int64_t(Variable*)>& evaluator,
     const std::function<std::vector<int64_t>(Variable*)>& set_evaluator) {
@@ -1374,7 +1385,7 @@ bool CheckArraySetElement(
     const Constraint& ct, const std::function<int64_t(Variable*)>& evaluator,
     const std::function<std::vector<int64_t>(Variable*)>& set_evaluator) {
   const int64_t index = Eval(ct.arguments[0], evaluator);
-  const int64_t min_index = ct.arguments[0].Var()->domain.Min();
+  const int64_t min_index = 1;
   const std::vector<int64_t> element =
       SetEvalAt(ct.arguments[1], index - min_index, set_evaluator);
   const std::vector<int64_t> target = SetEval(ct.arguments[2], set_evaluator);
@@ -1875,8 +1886,10 @@ CallMap CreateCallMap() {
   m["ortools_arg_max_int"] = CheckOrToolsArgMaxInt;
   m["ortools_array_bool_element"] = CheckOrToolsArrayIntElement;
   m["ortools_array_int_element"] = CheckOrToolsArrayIntElement;
+  m["ortools_array_set_element"] = CheckOrToolsArraySetElement;
   m["ortools_array_var_bool_element"] = CheckOrToolsArrayIntElement;
   m["ortools_array_var_int_element"] = CheckOrToolsArrayIntElement;
+  m["ortools_array_var_set_element"] = CheckOrToolsArraySetElement;
   m["ortools_bin_packing_capa"] = CheckOrToolsBinPackingCapa;
   m["ortools_bin_packing_load"] = CheckOrToolsBinPackingLoad;
   m["ortools_bin_packing"] = CheckOrToolsBinPacking;
