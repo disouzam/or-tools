@@ -648,6 +648,9 @@ bintest(
     size = "large",
     srcs = [":strawberry_fields_with_column_generation_test.bintest"],
     named_data = {"strawberry_fields_with_column_generation": ":strawberry_fields_with_column_generation"},
+    # flacky on almalinux and rockylinux
+    # see: https://github.com/google/or-tools/issues/5118
+    tags = ["noci"],
 )
 
 # Dimacs assignment problems

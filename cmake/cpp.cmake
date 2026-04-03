@@ -173,7 +173,7 @@ endif()
 #     GTest::gtest_main
 # )
 function(ortools_cxx_test)
-  set(options "")
+  set(options "DISABLED")
   set(oneValueArgs "NAME")
   set(multiValueArgs
     "SOURCES;COMPILE_DEFINITIONS;COMPILE_OPTIONS;LINK_LIBRARIES;LINK_OPTIONS")
@@ -224,6 +224,11 @@ function(ortools_cxx_test)
     COMMAND ${TEST_NAME}
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
   )
+  if(TEST_DISABLED)
+    set_tests_properties(cxx_${TEST_NAME} PROPERTIES
+      DISABLED TRUE
+  )
+  endif()
   message(STATUS "Configuring test ${TEST_NAME} ...DONE")
 endfunction()
 
@@ -392,7 +397,7 @@ find_package(Python3 COMPONENTS Interpreter)
 #     "BINTEST_foo_bar_data=$(CMAKE_CURRENT_SOURCE_DIR)/foo_bar_data.txt"
 # )
 function(ortools_cxx_bintest)
-  set(options "")
+  set(options "DISABLED")
   set(oneValueArgs "NAME;SCRIPT")
   set(multiValueArgs "ENVIRONMENT")
   cmake_parse_arguments(BINTEST
@@ -421,6 +426,11 @@ function(ortools_cxx_bintest)
   set_tests_properties(${BINTEST_NAME} PROPERTIES
     ENVIRONMENT "${BINTEST_ENVIRONMENT}"
   )
+  if(BINTEST_DISABLED)
+    set_tests_properties(${BINTEST_NAME} PROPERTIES
+      DISABLED TRUE
+  )
+  endif()
   message(STATUS "Configuring bintest ${BINTEST_NAME} ...DONE")
 endfunction()
 
