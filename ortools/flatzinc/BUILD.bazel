@@ -55,8 +55,10 @@ cc_library(
         "parser_util.cc",
         "parser_util.h",
     ],
-    copts = [
-        "-Wno-implicit-fallthrough",
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-implicit-fallthrough"],
+    }) + [
         "$(STACK_FRAME_UNLIMITED)",  # parser.tab.cc
     ],
     deps = [
@@ -77,9 +79,10 @@ cc_library(
 cc_library(
     name = "parser_lex_lib",
     srcs = ["parser.yy.cc"],
-    copts = [
-        "-Wno-implicit-fallthrough",
-    ] + select({
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-implicit-fallthrough"],
+    }) + select({
         "@platforms//os:linux": ["-Wno-unused-function"],  # parser.yy.cc
         "@platforms//os:macos": ["-Wno-unused-function"],  # parser.yy.cc
         "//conditions:default": [],
